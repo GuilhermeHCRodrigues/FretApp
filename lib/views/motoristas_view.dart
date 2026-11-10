@@ -211,10 +211,11 @@ class _MotoristasViewState extends State<MotoristasView> {
                           keyboardType: TextInputType.phone,
                           maxLength: 11,
                           validator: (v) {
-                            final digitos =
-                                (v ?? '').replaceAll(RegExp(r'\D'), '');
-                            return digitos.length == 10 ||
-                                    digitos.length == 11
+                            final digitos = (v ?? '').replaceAll(
+                              RegExp(r'\D'),
+                              '',
+                            );
+                            return digitos.length == 10 || digitos.length == 11
                                 ? null
                                 : 'Informe DDD e telefone';
                           },
@@ -258,8 +259,10 @@ class _MotoristasViewState extends State<MotoristasView> {
                           keyboardType: TextInputType.number,
                           maxLength: 11,
                           validator: (v) {
-                            final digitos =
-                                (v ?? '').replaceAll(RegExp(r'\D'), '');
+                            final digitos = (v ?? '').replaceAll(
+                              RegExp(r'\D'),
+                              '',
+                            );
                             return RegExp(r'^[0-9]{11}$').hasMatch(digitos)
                                 ? null
                                 : 'A CNH deve conter 11 números';
@@ -314,8 +317,9 @@ class _MotoristasViewState extends State<MotoristasView> {
                             if (escolhida != null) {
                               setDialogState(() {
                                 validadeCnh = escolhida;
-                                validadeController.text =
-                                    formatarData(escolhida);
+                                validadeController.text = formatarData(
+                                  escolhida,
+                                );
                               });
                             }
                           },
@@ -328,10 +332,7 @@ class _MotoristasViewState extends State<MotoristasView> {
                             border: OutlineInputBorder(),
                           ),
                           items: const [
-                            DropdownMenuItem(
-                              value: true,
-                              child: Text('Ativo'),
-                            ),
+                            DropdownMenuItem(value: true, child: Text('Ativo')),
                             DropdownMenuItem(
                               value: false,
                               child: Text('Inativo'),
@@ -361,8 +362,7 @@ class _MotoristasViewState extends State<MotoristasView> {
                     'cpf': cpf.replaceAll(RegExp(r'\D'), ''),
                     'telefone': telefone.replaceAll(RegExp(r'\D'), ''),
                     'email': email.trim().isEmpty ? null : email.trim(),
-                    'cnh_numero':
-                        cnhNumero.replaceAll(RegExp(r'\D'), ''),
+                    'cnh_numero': cnhNumero.replaceAll(RegExp(r'\D'), ''),
                     'cnh_categoria': cnhCategoria,
                     'cnh_validade': dataIso(validadeCnh!),
                     'ativo': ativo,
@@ -383,10 +383,7 @@ class _MotoristasViewState extends State<MotoristasView> {
     }
 
     try {
-      await vm.salvar(
-        id: motorista?['id'] as String?,
-        dados: dados,
-      );
+      await vm.salvar(id: motorista?['id'] as String?, dados: dados);
       if (!mounted) {
         return;
       }
@@ -403,9 +400,8 @@ class _MotoristasViewState extends State<MotoristasView> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(mensagemErro(erro))),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(mensagemErro(erro))));
     }
   }
 
@@ -446,47 +442,43 @@ class _MotoristasViewState extends State<MotoristasView> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(mensagemErro(erro))),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(mensagemErro(erro))));
     }
   }
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: vm,
-        builder: (context, child) => Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: widget.onVoltar,
-                    icon: const Icon(Icons.arrow_back),
-                    tooltip: 'Voltar',
-                  ),
-                  const Text(
-                    'Motoristas',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  FilledButton.icon(
-                    onPressed: () => abrirFormulario(),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Novo motorista'),
-                  ),
-                ],
+    animation: vm,
+    builder: (context, child) => Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: widget.onVoltar,
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Voltar',
               ),
-            ),
-            if (vm.carregando) const LinearProgressIndicator(),
-            Expanded(child: conteudo()),
-          ],
+              const Text(
+                'Motoristas',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: () => abrirFormulario(),
+                icon: const Icon(Icons.add),
+                label: const Text('Novo motorista'),
+              ),
+            ],
+          ),
         ),
-      );
+        if (vm.carregando) const LinearProgressIndicator(),
+        Expanded(child: conteudo()),
+      ],
+    ),
+  );
 
   Widget conteudo() {
     if (vm.carregando && vm.motoristas.isEmpty) {
@@ -542,19 +534,17 @@ class _MotoristasViewState extends State<MotoristasView> {
           final validade = DateTime.tryParse(
             motorista['cnh_validade']?.toString() ?? '',
           );
-          final cnhVencida = validade != null &&
-              DateUtils.dateOnly(validade).isBefore(
-                DateUtils.dateOnly(DateTime.now()),
-              );
+          final cnhVencida =
+              validade != null &&
+              DateUtils.dateOnly(validade)
+                  .isBefore(DateUtils.dateOnly(DateTime.now()));
           final ativo = motorista['ativo'] as bool? ?? true;
           final telefone = motorista['telefone']?.toString() ?? '';
 
           return Card(
             child: ListTile(
               leading: CircleAvatar(
-                child: Icon(
-                  ativo ? Icons.person : Icons.person_off_outlined,
-                ),
+                child: Icon(ativo ? Icons.person : Icons.person_off_outlined),
               ),
               title: Text(
                 motorista['nome']?.toString() ?? 'Motorista sem nome',
