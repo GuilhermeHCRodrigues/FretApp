@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'veiculos_view.dart';
 import 'motoristas_view.dart';
+import 'passageiros_view.dart';
 
 class AdminDashboardView extends StatefulWidget {
   const AdminDashboardView({super.key});
@@ -138,10 +139,12 @@ class _AdminDashboardViewState extends State<AdminDashboardView> {
         );
 
       case 3:
-        return paginaEmConstrucao(
-          'Passageiros',
-          Icons.person,
-          'Cadastro e gerenciamento dos passageiros.',
+        return PassageirosView(
+          onVoltar: () {
+            setState(() {
+              paginaSelecionada = 0;
+            });
+          },
         );
 
       case 4:
