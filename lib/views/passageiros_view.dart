@@ -128,9 +128,7 @@ class _PassageirosViewState extends State<PassageirosView> {
     var ativo = passageiro?['ativo'] as bool? ?? true;
     DateTime? nascimento = DateTime.tryParse(valor('data_nascimento'));
 
-    final nascimentoController = TextEditingController(
-      text: nascimento == null ? '' : formatarData(nascimento),
-    );
+    var nascimentoTexto = nascimento == null ? '' : formatarData(nascimento);
 
     final dados = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -226,15 +224,7 @@ class _PassageirosViewState extends State<PassageirosView> {
                           onChanged: (v) => email = v,
                         ),
                         const SizedBox(height: 12),
-                        TextFormField(
-                          controller: nascimentoController,
-                          readOnly: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Data de nascimento (opcional)',
-                            hintText: 'Selecione a data',
-                            border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_month),
-                          ),
+                        InkWell(
                           onTap: () async {
                             final hoje = DateUtils.dateOnly(DateTime.now());
                             final escolhida = await showDatePicker(
@@ -247,11 +237,28 @@ class _PassageirosViewState extends State<PassageirosView> {
                             if (escolhida != null) {
                               setDialogState(() {
                                 nascimento = escolhida;
-                                nascimentoController.text =
-                                    formatarData(escolhida);
+                                nascimentoTexto = formatarData(escolhida);
                               });
                             }
                           },
+                          child: InputDecorator(
+                            decoration: const InputDecoration(
+                              labelText: 'Data de nascimento (opcional)',
+                              hintText: 'Selecione a data',
+                              border: OutlineInputBorder(),
+                              suffixIcon: Icon(Icons.calendar_month),
+                            ),
+                            child: Text(
+                              nascimentoTexto.isEmpty
+                                  ? 'Selecione a data'
+                                  : nascimentoTexto,
+                              style: TextStyle(
+                                color: nascimentoTexto.isEmpty
+                                    ? Theme.of(dialogContext).hintColor
+                                    : null,
+                              ),
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 20),
                         const Text(
@@ -479,8 +486,6 @@ class _PassageirosViewState extends State<PassageirosView> {
         },
       ),
     );
-
-    nascimentoController.dispose();
 
     if (dados == null || !mounted) return;
 
