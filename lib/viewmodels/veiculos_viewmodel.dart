@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -22,12 +21,21 @@ class VeiculosViewModel extends ChangeNotifier {
     try {
       final dados = await supabase
           .from('veiculos')
-          .select('id, placa, modelo, capacidade, ativo')
+          .select(
+            'id, placa, marca, modelo, ano_fabricacao, ano_modelo, cor, '
+            'capacidade, tipo, chassi_final, motor_final, renavam, uf, '
+            'municipio, quilometragem, combustivel, observacoes, ativo',
+          )
           .order('placa');
 
       veiculos = List<Map<String, dynamic>>.from(dados);
-    } catch (_) {
-      erro = 'Não foi possível carregar os veículos.';
+    } catch (exception) {
+      if (exception is PostgrestException && exception.code == '42703') {
+        erro = 'Os novos campos ainda não existem no Supabase. '
+            'Execute a migração SQL do projeto.';
+      } else {
+        erro = 'Não foi possível carregar os veículos.';
+      }
     } finally {
       carregando = false;
       atualizar();
@@ -36,23 +44,18 @@ class VeiculosViewModel extends ChangeNotifier {
 
   Future<void> salvar({
     String? id,
-    required String placa,
-    required String modelo,
-    required int capacidade,
+    required Map<String, dynamic> dados,
   }) async {
-    final dados = {
-      'placa': placa.trim().toUpperCase(),
-      'modelo': modelo.trim(),
-      'capacidade': capacidade,
+    final registro = {
+      ...dados,
+      'placa': (dados['placa'] as String).trim().toUpperCase(),
+      'modelo': (dados['modelo'] as String).trim(),
     };
 
     if (id == null) {
-      await supabase.from('veiculos').insert(dados);
+      await supabase.from('veiculos').insert(registro);
     } else {
-      await supabase
-          .from('veiculos')
-          .update(dados)
-          .eq('id', id);
+      await supabase.from('veiculos').update(registro).eq('id', id);
     }
 
     await carregar();
