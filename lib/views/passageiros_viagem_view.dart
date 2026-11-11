@@ -1,9 +1,14 @@
 part of 'motorista_view.dart';
 
 class PassageirosViagemView extends StatefulWidget {
-  const PassageirosViagemView({super.key, required this.modelo});
+  const PassageirosViagemView({
+    super.key,
+    required this.modelo,
+    this.desktop = false,
+  });
 
   final MotoristaViewModel modelo;
+  final bool desktop;
 
   @override
   State<PassageirosViagemView> createState() => _PassageirosViagemViewState();
@@ -33,152 +38,176 @@ class _PassageirosViagemViewState extends State<PassageirosViagemView> {
   @override
   Widget build(BuildContext context) {
     final modelo = widget.modelo;
+    final tema = Theme.of(context);
     final passageiros = modelo.passageirosFiltrados;
-    final bordaBusca = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(13),
-      borderSide: const BorderSide(color: Color(0xffd6dfec)),
-    );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 7, 2, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          header: true,
+          child: Text(
+            'Passageiros',
+            style: tema.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _ResumoEmbarque(modelo: modelo, desktop: widget.desktop),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _busca,
+          onChanged: modelo.pesquisar,
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            labelText: 'Buscar por nome',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: modelo.busca.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Limpar busca',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => modelo.pesquisar(''),
+                  ),
+            border: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (passageiros.isEmpty)
           Semantics(
-            header: true,
-            child: const Text(
-              'Passageiros',
-              style: TextStyle(
-                fontSize: 25,
-                fontWeight: FontWeight.w700,
-                color: _tinta,
+            liveRegion: true,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                children: [
+                  Icon(
+                    modelo.totalPassageiros == 0
+                        ? Icons.people_outline
+                        : Icons.search_off,
+                    size: 40,
+                    color: tema.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    modelo.totalPassageiros == 0
+                        ? 'Nenhum passageiro nesta viagem'
+                        : 'Nenhum passageiro encontrado',
+                    textAlign: TextAlign.center,
+                    style: tema.textTheme.bodyLarge,
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          _ResumoEmbarque(modelo: modelo),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _busca,
-            onChanged: modelo.pesquisar,
-            textInputAction: TextInputAction.search,
-            style: const TextStyle(fontSize: 15, color: _tinta),
-            decoration: InputDecoration(
-              hintText: 'Buscar por nome',
-              hintStyle: const TextStyle(
-                color: _secundaria,
-                fontWeight: FontWeight.w400,
-              ),
-              prefixIcon: const Icon(Icons.search_rounded, color: _azulEscuro),
-              suffixIcon: modelo.busca.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Limpar busca',
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () => modelo.pesquisar(''),
+          )
+        else
+          LayoutBuilder(
+            builder: (context, limites) {
+              const espaco = 12.0;
+              final duasColunas = widget.desktop && limites.maxWidth >= 624;
+              final largura = duasColunas
+                  ? (limites.maxWidth - espaco) / 2
+                  : limites.maxWidth;
+              return Wrap(
+                spacing: espaco,
+                runSpacing: espaco,
+                children: [
+                  for (final passageiro in passageiros)
+                    SizedBox(
+                      key: ValueKey(passageiro.id),
+                      width: largura,
+                      child: _CartaoPassageiro(
+                        passageiro: passageiro,
+                        aoAlterar: () => modelo.definirEmbarque(
+                          passageiro.id,
+                          !passageiro.embarcou,
+                        ),
+                      ),
                     ),
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 12,
-                horizontal: 12,
-              ),
-              filled: true,
-              fillColor: const Color(0xfff7f9fd),
-              enabledBorder: bordaBusca,
-              focusedBorder: bordaBusca.copyWith(
-                borderSide: const BorderSide(color: _azul, width: 2),
-              ),
-            ),
+                ],
+              );
+            },
           ),
-          const SizedBox(height: 12),
-          if (passageiros.isEmpty)
-            Semantics(
-              liveRegion: true,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Text(
-                  modelo.totalPassageiros == 0
-                      ? 'Nenhum passageiro nesta viagem'
-                      : 'Nenhum passageiro encontrado',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: _secundaria, fontSize: 15),
-                ),
-              ),
-            ),
-          for (final passageiro in passageiros)
-            _CartaoPassageiro(
-              key: ValueKey(passageiro.id),
-              passageiro: passageiro,
-              aoAlterar: () =>
-                  modelo.definirEmbarque(passageiro.id, !passageiro.embarcou),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }
 
 class _ResumoEmbarque extends StatelessWidget {
-  const _ResumoEmbarque({required this.modelo});
+  const _ResumoEmbarque({required this.modelo, required this.desktop});
+  final MotoristaViewModel modelo;
+  final bool desktop;
 
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final rota = Row(
+      children: [
+        Icon(Icons.route_outlined, color: tema.colorScheme.primary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: '${modelo.origem} '),
+                const WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Icon(Icons.arrow_forward, size: 18),
+                ),
+                TextSpan(text: ' ${modelo.destino}'),
+              ],
+            ),
+            semanticsLabel: 'Rota de ${modelo.origem} para ${modelo.destino}',
+            style: tema.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Icon(
+          Icons.schedule_outlined,
+          size: 18,
+          color: tema.colorScheme.primary,
+        ),
+        const SizedBox(width: 4),
+        Text(modelo.horarioSaida, style: tema.textTheme.labelLarge),
+      ],
+    );
+    final contadores = _ContadoresEmbarque(modelo: modelo);
+    return _CartaoPainel(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: desktop
+            ? Row(
+                children: [
+                  Expanded(child: rota),
+                  const SizedBox(width: 32),
+                  Expanded(child: contadores),
+                ],
+              )
+            : Column(children: [rota, const Divider(height: 24), contadores]),
+      ),
+    );
+  }
+}
+
+class _ContadoresEmbarque extends StatelessWidget {
+  const _ContadoresEmbarque({required this.modelo});
   final MotoristaViewModel modelo;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: const Color(0xfff1f6ff),
-      border: Border.all(color: const Color(0xffd7e5fa)),
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.route_outlined, size: 21, color: _azul),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${modelo.origem} → ${modelo.destino}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: _tinta,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.schedule_rounded, size: 16, color: _azulEscuro),
-              const SizedBox(width: 4),
-              Text(
-                modelo.horarioSaida,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: _azulEscuro,
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: 20, color: Color(0xffd7e5fa)),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _ContadorEmbarque('Total', modelo.totalPassageiros, _azulEscuro),
-              _ContadorEmbarque(
-                'Embarcados',
-                modelo.embarcados,
-                const Color(0xff176d45),
-              ),
-              _ContadorEmbarque(
-                'Pendentes',
-                modelo.pendentes,
-                const Color(0xff915509),
-              ),
-            ],
-          ),
-        ],
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _ContadorEmbarque(
+        'Total',
+        modelo.totalPassageiros,
+        Theme.of(context).colorScheme.primary,
       ),
-    ),
+      _ContadorEmbarque('Embarcados', modelo.embarcados, Colors.green.shade800),
+      _ContadorEmbarque('Pendentes', modelo.pendentes, Colors.orange.shade900),
+    ],
   );
 }
 
@@ -189,159 +218,103 @@ class _ContadorEmbarque extends StatelessWidget {
   final Color cor;
 
   @override
-  Widget build(BuildContext context) => Expanded(
-    child: Semantics(
-      container: true,
-      label: '$rotulo: $valor',
-      excludeSemantics: true,
-      child: Column(
-        children: [
-          Text(
-            '$valor',
-            style: TextStyle(
-              fontSize: 23,
-              height: 1.1,
-              fontWeight: FontWeight.w700,
-              color: cor,
+  Widget build(BuildContext context) {
+    final texto = Theme.of(context).textTheme;
+    return Expanded(
+      child: Semantics(
+        container: true,
+        label: '$rotulo: $valor',
+        excludeSemantics: true,
+        child: Column(
+          children: [
+            Text(
+              '$valor',
+              style: texto.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: cor,
+              ),
             ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            rotulo,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: _secundaria,
-            ),
-          ),
-        ],
+            Text(rotulo, textAlign: TextAlign.center, style: texto.labelMedium),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _CartaoPassageiro extends StatelessWidget {
-  const _CartaoPassageiro({
-    super.key,
-    required this.passageiro,
-    required this.aoAlterar,
-  });
+  const _CartaoPassageiro({required this.passageiro, required this.aoAlterar});
   final PassageiroViagem passageiro;
   final VoidCallback aoAlterar;
 
   @override
   Widget build(BuildContext context) {
+    final tema = Theme.of(context);
     final embarcou = passageiro.embarcou;
     final acao = embarcou ? 'Desfazer' : 'Confirmar';
-    final corStatus = embarcou
-        ? const Color(0xff176d45)
-        : const Color(0xff915509);
-    return Semantics(
-      container: true,
+    final corStatus = embarcou ? Colors.green.shade800 : Colors.orange.shade900;
+    final rotuloAcao = '$acao embarque de ${passageiro.nome}';
+    final textoAcao = Text(acao, semanticsLabel: rotuloAcao);
+    return _CartaoPainel(
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xffdfe6f1)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(13, 9, 9, 9),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        passageiro.nome,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: _tinta,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(
-                            Icons.location_on_outlined,
-                            size: 15,
-                            color: _secundaria,
-                          ),
-                          const SizedBox(width: 3),
-                          Expanded(
-                            child: Text(
-                              passageiro.pontoEmbarque,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: _secundaria,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: embarcou
-                              ? const Color(0xffe5f5eb)
-                              : const Color(0xfffff1d9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          embarcou ? 'Embarcou' : 'Pendente',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: corStatus,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: tema.colorScheme.primaryContainer,
+                foregroundColor: tema.colorScheme.onPrimaryContainer,
+                child: const Icon(Icons.person_outline),
+              ),
+              title: Text(
+                passageiro.nome,
+                style: tema.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(width: 6),
-                Tooltip(
-                  message: '$acao embarque de ${passageiro.nome}',
-                  excludeFromSemantics: true,
-                  child: TextButton.icon(
-                    onPressed: aoAlterar,
-                    icon: Icon(
-                      embarcou ? Icons.undo_rounded : Icons.check_rounded,
-                      size: 17,
-                    ),
-                    label: Text(
-                      acao,
-                      semanticsLabel: '$acao embarque de ${passageiro.nome}',
-                    ),
-                    style: TextButton.styleFrom(
-                      backgroundColor: embarcou
-                          ? const Color(0xffeff4fc)
-                          : _azul,
-                      foregroundColor: embarcou ? _azulEscuro : Colors.white,
-                      minimumSize: const Size(0, 38),
-                      padding: const EdgeInsets.symmetric(horizontal: 9),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+              ),
+              subtitle: Text(passageiro.pontoEmbarque),
+            ),
+            OverflowBar(
+              alignment: MainAxisAlignment.spaceBetween,
+              overflowAlignment: OverflowBarAlignment.start,
+              spacing: 8,
+              children: [
+                Chip(
+                  avatar: Icon(
+                    embarcou ? Icons.check_circle_outline : Icons.schedule,
+                    size: 16,
+                    color: corStatus,
                   ),
+                  label: Text(embarcou ? 'Embarcou' : 'Pendente'),
+                  labelStyle: tema.textTheme.labelMedium?.copyWith(
+                    color: corStatus,
+                  ),
+                  backgroundColor: corStatus.withValues(alpha: 0.10),
+                  side: BorderSide.none,
+                  shape: const StadiumBorder(),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                Tooltip(
+                  message: rotuloAcao,
+                  excludeFromSemantics: true,
+                  child: embarcou
+                      ? TextButton.icon(
+                          onPressed: aoAlterar,
+                          icon: const Icon(Icons.undo),
+                          label: textoAcao,
+                        )
+                      : FilledButton.icon(
+                          onPressed: aoAlterar,
+                          icon: const Icon(Icons.check),
+                          label: textoAcao,
+                        ),
                 ),
               ],
             ),
-          ),
+          ],
         ),
       ),
     );
