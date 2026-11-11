@@ -70,12 +70,15 @@ class _VeiculosViewState extends State<VeiculosView> {
   String mensagemErro(Object erro) {
     if (erro is PostgrestException) {
       if (erro.code == '23505') return 'Essa placa já está cadastrada.';
-      if (erro.code == '42501')
+      if (erro.code == '42501') {
         return 'Você não tem permissão para realizar essa operação.';
-      if (erro.code == '42703')
+      }
+      if (erro.code == '42703') {
         return 'Os campos novos ainda não existem no Supabase. Execute a migração SQL.';
-      if (erro.code == '23514')
+      }
+      if (erro.code == '23514') {
         return 'Um dos dados informados não passou na validação do banco.';
+      }
     }
     return 'Não foi possível concluir a operação. Tente novamente.';
   }
@@ -183,8 +186,9 @@ class _VeiculosViewState extends State<VeiculosView> {
                         maxLength: 4,
                         validator: (v) {
                           final t = (v ?? '').trim();
-                          if (t.isEmpty)
+                          if (t.isEmpty) {
                             return novo ? 'Informe o ano de fabricação' : null;
+                          }
                           final n = int.tryParse(t);
                           return n == null ||
                                   n < 1900 ||
@@ -202,16 +206,19 @@ class _VeiculosViewState extends State<VeiculosView> {
                         maxLength: 4,
                         validator: (v) {
                           final t = (v ?? '').trim();
-                          if (t.isEmpty)
+                          if (t.isEmpty) {
                             return novo ? 'Informe o ano-modelo' : null;
+                          }
                           final n = int.tryParse(t),
                               f = int.tryParse(anoFabricacao.trim());
                           if (n == null ||
                               n < 1900 ||
-                              n > DateTime.now().year + 1)
+                              n > DateTime.now().year + 1) {
                             return 'Informe um ano válido';
-                          if (f != null && (n < f || n > f + 1))
+                          }
+                          if (f != null && (n < f || n > f + 1)) {
                             return 'Use o ano de fabricação ou o seguinte';
+                          }
                           return null;
                         },
                       ),

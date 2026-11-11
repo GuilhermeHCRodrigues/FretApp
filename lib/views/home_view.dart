@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_dashboard_view.dart';
+import 'passageiro_home_view.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -87,6 +88,10 @@ class _HomeViewState extends State<HomeView> {
 
           if (tipo == 'administrador') {
             return const AdminDashboardView();
+          }
+
+          if (tipo == 'passageiro') {
+             return const PassageiroHomeView();
           }
 
 
