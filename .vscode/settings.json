@@ -1,0 +1,5 @@
+{
+    "cmake.ignoreCMakeListsMissing": true,
+    "svn.ignoreMissingSvnWarning": true,
+    "C_Cpp.default.compilerPath": "c:\\Users\\grodrigues\\FretApp\\windows\\flutter\\generated_plugin_registrant.cc"
+}
