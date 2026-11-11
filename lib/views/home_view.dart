@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_dashboard_view.dart';
 import 'motorista_view.dart';
+import 'passageiro_home_view.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -98,9 +99,12 @@ class _HomeViewState extends State<HomeView> {
           );
         }
 
-        final titulo = tipo == 'passageiro'
-            ? 'Área do Passageiro'
-            : 'Perfil não reconhecido';
+        if (tipo == 'passageiro') {
+          return Scaffold(
+            appBar: construirAppBar(),
+            body: const PassageiroHomeView(),
+          );
+        }
 
         return Scaffold(
           appBar: construirAppBar(),
@@ -110,12 +114,9 @@ class _HomeViewState extends State<HomeView> {
               children: [
                 const Icon(Icons.directions_bus, size: 70, color: Colors.blue),
                 const SizedBox(height: 20),
-                Text(
-                  titulo,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                  ),
+                const Text(
+                  'Perfil não reconhecido',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
                 Text(usuario?.email ?? ''),
