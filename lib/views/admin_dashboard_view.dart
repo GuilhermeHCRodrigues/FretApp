@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'veiculos_view.dart';
 import 'motoristas_view.dart';
 import 'passageiros_view.dart';
+import 'rotas_view.dart';
 
 class AdminDashboardView extends StatefulWidget {
   const AdminDashboardView({super.key});
@@ -148,10 +149,12 @@ class _AdminDashboardViewState extends State<AdminDashboardView> {
         );
 
       case 4:
-        return paginaEmConstrucao(
-          'Rotas',
-          Icons.route,
-          'Cadastro e organização das rotas.',
+        return RotasView(
+          onVoltar: () {
+            setState(() {
+              paginaSelecionada = 0;
+            });
+          },
         );
 
       case 5:
