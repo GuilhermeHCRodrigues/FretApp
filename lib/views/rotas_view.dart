@@ -357,8 +357,10 @@ class _RotasViewState extends State<RotasView> {
         itemBuilder: (context, index) {
           final rota = vm.rotas[index];
           final pontos = List<Map<String, dynamic>>.from(rota['pontos_rota'] ?? const []);
-          final motorista = vm.motoristas.where((m) => m['id'] == rota['motorista_id']).firstOrNull;
-          final veiculo = vm.veiculos.where((v) => v['id'] == rota['veiculo_id']).firstOrNull;
+          final motoristasEncontrados = vm.motoristas.where((m) => m['id'] == rota['motorista_id']).toList();
+          final veiculosEncontrados = vm.veiculos.where((v) => v['id'] == rota['veiculo_id']).toList();
+          final motorista = motoristasEncontrados.isEmpty ? null : motoristasEncontrados.first;
+          final veiculo = veiculosEncontrados.isEmpty ? null : veiculosEncontrados.first;
           final diasRota = List<String>.from(rota['dias_semana'] ?? const []);
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
