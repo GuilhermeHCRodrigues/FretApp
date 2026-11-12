@@ -4,6 +4,7 @@ import 'veiculos_view.dart';
 import 'motoristas_view.dart';
 import 'passageiros_view.dart';
 import 'rotas_view.dart';
+import 'viagens_view.dart';
 
 class AdminDashboardView extends StatefulWidget {
   const AdminDashboardView({super.key});
@@ -158,10 +159,12 @@ class _AdminDashboardViewState extends State<AdminDashboardView> {
         );
 
       case 5:
-        return paginaEmConstrucao(
-          'Viagens',
-          Icons.location_on,
-          'Acompanhamento das viagens e embarques.',
+        return ViagensView(
+          onVoltar: () {
+            setState(() {
+              paginaSelecionada = 0;
+            });
+          },
         );
 
       case 6:
