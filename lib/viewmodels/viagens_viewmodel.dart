@@ -29,7 +29,7 @@ class ViagensViewModel extends ChangeNotifier {
             .select(
               '*, '
               'rotas!viagens_rota_id_fkey(nome, origem, destino), '
-              'motoristas:perfis!viagens_motorista_id_fkey(nome_completo), '
+              'motoristas:perfis!viagens_motorista_id_fkey(nome:nome_completo), '
               'veiculos!viagens_veiculo_id_fkey(placa, modelo, capacidade), '
               'viagem_passageiros('
               'id, passageiro_id, embarcou, horario_embarque, '
@@ -44,9 +44,9 @@ class ViagensViewModel extends ChangeNotifier {
             .order('nome'),
         supabase
             .from('perfis')
-            .select('id, nome_completo')
+            .select('id, nome:nome_completo')
             .eq('tipo', 'motorista')
-            .order('nome_completo'),
+            .order('nome:nome_completo'),
         supabase
             .from('veiculos')
             .select('id, placa, modelo, capacidade')
