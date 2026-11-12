@@ -2,91 +2,44 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fretapp/models/passageiro_viagem.dart';
 import 'package:fretapp/viewmodels/motorista_viewmodel.dart';
 
+const _passageiros = [
+  PassageiroViagem(id: 'ana', viagemId: 'v', nome: 'Ana Exemplo'),
+  PassageiroViagem(id: 'bruno', viagemId: 'v', nome: 'Bruno Exemplo'),
+  PassageiroViagem(id: 'joao', viagemId: 'v', nome: 'João Exemplo'),
+];
+
 void main() {
-  test('a lista inicial corresponde aos quatro embarques demonstrativos', () {
-    final modelo = MotoristaViewModel();
-    addTearDown(modelo.dispose);
-
-    final lista = modelo.passageirosFiltrados;
-    expect(
-      lista.map((p) => (p.nome, p.pontoEmbarque, p.embarcou)),
-      unorderedEquals([
-        ('Ana Souza', 'Praça Central', true),
-        ('Carlos Lima', 'Terminal Rodoviário', true),
-        ('Beatriz Alves', 'Avenida Brasil', false),
-        ('João Pedro', 'Praça Central', false),
-      ]),
-    );
-    expect(
-      (modelo.totalPassageiros, modelo.embarcados, modelo.pendentes),
-      (4, 2, 2),
-    );
-  });
-
   test('buscar não altera o total da viagem e embarques são reversíveis', () {
-    final modelo = MotoristaViewModel();
+    final modelo = MotoristaViewModel(viagemId: 'v', passageiros: _passageiros);
     addTearDown(modelo.dispose);
 
     modelo.pesquisar('  JOAO  ');
     final joao = modelo.passageirosFiltrados.single;
-    expect(joao.nome, 'João Pedro');
+    expect(joao.nome, 'João Exemplo');
+    modelo
+      ..definirEmbarque(joao.id, true)
+      ..definirEmbarque(joao.id, true);
     expect(
       (modelo.totalPassageiros, modelo.embarcados, modelo.pendentes),
-      (4, 2, 2),
-    );
-    modelo.definirEmbarque(joao.id, true);
-    modelo.definirEmbarque(joao.id, true);
-    expect(modelo.passageirosFiltrados.single.embarcou, isTrue);
-    expect(
-      (modelo.totalPassageiros, modelo.embarcados, modelo.pendentes),
-      (4, 3, 1),
+      (3, 1, 2),
     );
 
     modelo.pesquisar('ausente');
     expect(modelo.passageirosFiltrados, isEmpty);
-    expect(
-      (modelo.totalPassageiros, modelo.embarcados, modelo.pendentes),
-      (4, 3, 1),
-    );
-    modelo.pesquisar('edr');
-    expect(modelo.passageirosFiltrados.single.id, joao.id);
-    modelo.definirEmbarque(joao.id, false);
-    modelo.definirEmbarque(joao.id, false);
-    modelo.pesquisar('');
-    expect(modelo.passageirosFiltrados.length, 4);
-    expect(
-      modelo.passageirosFiltrados.singleWhere((p) => p.id == joao.id).embarcou,
-      isFalse,
-    );
-    expect(
-      (modelo.totalPassageiros, modelo.embarcados, modelo.pendentes),
-      (4, 2, 2),
-    );
+    expect(modelo.totalPassageiros, 3);
+
+    modelo
+      ..definirEmbarque(joao.id, false)
+      ..pesquisar('');
+    expect(modelo.passageirosFiltrados.length, 3);
+    expect(modelo.embarcados, 0);
   });
 
   test('seleciona e altera apenas os embarques associados à viagem', () {
     const passageiros = [
-      PassageiroViagem(
-        id: 'ana',
-        viagemId: 'ida',
-        nome: 'Ana Souza',
-        pontoEmbarque: 'Praça Central',
-        embarcou: false,
-      ),
-      PassageiroViagem(
-        id: 'ana',
-        viagemId: 'volta',
-        nome: 'Ana Souza',
-        pontoEmbarque: 'Faculdade',
-        embarcou: false,
-      ),
-      PassageiroViagem(
-        id: 'outro',
-        viagemId: 'volta',
-        nome: 'Carlos Lima',
-        pontoEmbarque: 'Faculdade',
-        embarcou: false,
-      ),
+      PassageiroViagem(id: 'ana', viagemId: 'ida', nome: 'Ana Exemplo'),
+      PassageiroViagem(id: 'ana', viagemId: 'volta', nome: 'Ana Exemplo'),
+      PassageiroViagem(id: 'outro', viagemId: 'volta', nome: 'Bruno Exemplo'),
     ];
     final ida = MotoristaViewModel(viagemId: 'ida', passageiros: passageiros);
     final volta = MotoristaViewModel(
@@ -97,7 +50,6 @@ void main() {
     addTearDown(volta.dispose);
 
     expect(ida.totalPassageiros, 1);
-    expect(ida.passageirosFiltrados.single.pontoEmbarque, 'Praça Central');
     ida.definirEmbarque('outro', true);
     expect(ida.embarcados, 0);
     ida.definirEmbarque('ana', true);

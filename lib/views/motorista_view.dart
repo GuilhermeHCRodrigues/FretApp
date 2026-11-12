@@ -1,36 +1,44 @@
 import 'package:flutter/material.dart';
 
 import '../models/passageiro_viagem.dart';
+import '../services/motorista_servico.dart' as servico;
+import '../tema/cores_status.dart';
 import '../viewmodels/motorista_viewmodel.dart';
+import 'widgets/comum/casca_responsiva.dart';
+import 'widgets/comum/chip_status.dart';
+import 'widgets/comum/estados.dart';
 import 'widgets/ilustracao_onibus.dart';
-import 'widgets/mapa_trajeto_demo.dart';
+import 'widgets/mapa_motorista.dart';
 
 part 'passageiros_viagem_view.dart';
 
-// Cores de identidade usadas também no painel do passageiro.
-const _azul = Color(0xff1d4ed8);
-const _azulEscuro = Color(0xff172554);
-const _azulClaro = Color(0xffdbeafe);
-const _fundo = Color(0xfff5f7fb);
-const _borda = Color(0xffe2e8f0);
-const _abas = ['Início', 'Passageiros', 'Avisos', 'Perfil'];
-const _icones = [
-  Icons.home_outlined,
-  Icons.groups_outlined,
-  Icons.notifications_none_rounded,
-  Icons.person_outline_rounded,
-];
-const _iconesAtivos = [
-  Icons.home_rounded,
-  Icons.groups_rounded,
-  Icons.notifications_rounded,
-  Icons.person_rounded,
+const _destinos = [
+  DestinoCasca(
+    icone: Icons.home_outlined,
+    iconeSelecionado: Icons.home_rounded,
+    rotulo: 'Início',
+  ),
+  DestinoCasca(
+    icone: Icons.groups_outlined,
+    iconeSelecionado: Icons.groups_rounded,
+    rotulo: 'Passageiros',
+  ),
+  DestinoCasca(
+    icone: Icons.notifications_none_rounded,
+    iconeSelecionado: Icons.notifications_rounded,
+    rotulo: 'Avisos',
+  ),
+  DestinoCasca(
+    icone: Icons.person_outline_rounded,
+    iconeSelecionado: Icons.person_rounded,
+    rotulo: 'Perfil',
+  ),
 ];
 
 class MotoristaView extends StatefulWidget {
   const MotoristaView({super.key, this.modelo, this.onSair});
 
-  /// Permite que a rota forneça o modelo da viagem atribuída ao motorista.
+  /// Permite que a rota (ou um teste) forneça o modelo da viagem.
   final MotoristaViewModel? modelo;
   final Future<void> Function()? onSair;
 
@@ -39,128 +47,67 @@ class MotoristaView extends StatefulWidget {
 }
 
 class _MotoristaViewState extends State<MotoristaView> {
-  MotoristaViewModel? _demo;
+  MotoristaViewModel? _proprio;
   MotoristaViewModel get _motorista =>
-      widget.modelo ?? (_demo ??= MotoristaViewModel());
+      widget.modelo ??
+      (_proprio ??= MotoristaViewModel(
+        fontePassageiros: servico.buscarPassageirosDaEnquete,
+        solicitarLocalizacao: servico.solicitarLocalizacao,
+        acompanharLocalizacao: servico.acompanharLocalizacao,
+        publicarPosicao: servico.publicarPosicao,
+        fonteViagem: servico.buscarViagemDoDia,
+        atualizarStatus: servico.atualizarStatusViagem,
+      ));
   int _aba = 0;
 
   @override
-  void dispose() {
-    _demo?.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _motorista
+      ..carregarViagem()
+      ..carregarPassageiros();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: _fundo,
-      child: LayoutBuilder(
-        builder: (context, limites) {
-          final largura = limites.maxWidth;
-          final desktop = largura >= 1024;
-          final larguraMaxima = switch (largura) {
-            < 600 => largura,
-            < 1024 => 720.0,
-            _ => 1360.0,
-          };
-          return Padding(
-            padding: EdgeInsets.symmetric(horizontal: largura >= 600 ? 24 : 0),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: larguraMaxima),
-                child: _painel(desktop, expandirMenu: largura >= 1200),
-              ),
-            ),
-          );
-        },
-      ),
-    );
+  void dispose() {
+    _proprio?.dispose();
+    super.dispose();
   }
-
-  Widget _painel(bool desktop, {required bool expandirMenu}) => Scaffold(
-    backgroundColor: _fundo,
-    body: SafeArea(
-      bottom: desktop,
-      child: Row(
-        children: [
-          if (desktop) ...[
-            _navegacaoLateral(expandida: expandirMenu),
-            const VerticalDivider(width: 1, color: _borda),
-          ],
-          Expanded(
-            key: const ValueKey('conteudo-motorista'),
-            child: ListenableBuilder(
-              listenable: _motorista,
-              builder: (context, _) => ListView(
-                key: PageStorageKey(_abas[_aba]),
-                padding: EdgeInsets.zero,
-                children: [
-                  const _Cabecalho(),
-                  Padding(
-                    padding: desktop
-                        ? const EdgeInsets.all(24)
-                        : const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                    child: _conteudo(desktop),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-    bottomNavigationBar: desktop
-        ? null
-        : NavigationBar(
-            height: 68,
-            backgroundColor: Colors.white,
-            indicatorColor: _azulClaro,
-            selectedIndex: _aba,
-            onDestinationSelected: _selecionar,
-            destinations: [
-              for (int i = 0; i < _abas.length; i++)
-                NavigationDestination(
-                  icon: Icon(_icones[i]),
-                  selectedIcon: Icon(_iconesAtivos[i], color: _azul),
-                  label: _abas[i],
-                ),
-            ],
-          ),
-  );
 
   void _selecionar(int indice) => setState(() => _aba = indice);
 
-  Widget _navegacaoLateral({required bool expandida}) {
-    final texto = Theme.of(context).textTheme;
-    final rotulo = expandida ? texto.titleSmall : texto.labelLarge;
-    return NavigationRail(
-      extended: expandida,
-      minWidth: expandida ? 64 : 108,
-      minExtendedWidth: 172,
-      scrollable: true,
-      backgroundColor: Colors.white,
-      indicatorColor: _azulClaro,
-      labelType: expandida
-          ? NavigationRailLabelType.none
-          : NavigationRailLabelType.all,
-      selectedLabelTextStyle: rotulo?.copyWith(
-        color: _azulEscuro,
-        fontWeight: FontWeight.bold,
+  @override
+  Widget build(BuildContext context) {
+    return CascaResponsiva(
+      destinos: _destinos,
+      indiceSelecionado: _aba,
+      aoSelecionar: _selecionar,
+      subtitulo: 'Área do motorista',
+      rodapeLateral: widget.onSair == null
+          ? null
+          : ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                child: Icon(
+                  Icons.person,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              title: const Text('Motorista'),
+              subtitle: const Text('Sair da conta'),
+              trailing: const Icon(Icons.logout, size: 20),
+              onTap: widget.onSair,
+            ),
+      corpo: (context, desktop) => ListenableBuilder(
+        listenable: _motorista,
+        builder: (context, _) => ListView(
+          key: PageStorageKey(_destinos[_aba].rotulo),
+          padding: desktop
+              ? const EdgeInsets.all(24)
+              : const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          children: [_conteudo(desktop)],
+        ),
       ),
-      unselectedLabelTextStyle: rotulo?.copyWith(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
-      selectedIndex: _aba,
-      onDestinationSelected: _selecionar,
-      destinations: [
-        for (int i = 0; i < _abas.length; i++)
-          NavigationRailDestination(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            icon: Icon(_icones[i], size: 26),
-            selectedIcon: Icon(_iconesAtivos[i], size: 26, color: _azul),
-            label: Text(_abas[i]),
-          ),
-      ],
     );
   }
 
@@ -193,105 +140,13 @@ class _MotoristaViewState extends State<MotoristaView> {
   }
 }
 
+/// Cartão branco com borda, vindo do `cardTheme`.
 class _CartaoPainel extends StatelessWidget {
   const _CartaoPainel({required this.child});
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Card.outlined(
-    color: Colors.white,
-    margin: EdgeInsets.zero,
-    clipBehavior: Clip.antiAlias,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(16),
-      side: const BorderSide(color: _borda),
-    ),
-    child: child,
-  );
-}
-
-class _Cabecalho extends StatelessWidget {
-  const _Cabecalho();
-
-  @override
-  Widget build(BuildContext context) {
-    final texto = Theme.of(context).textTheme;
-    return CustomPaint(
-      painter: const _FundoCabecalho(),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.directions_bus_filled_rounded,
-              size: 42,
-              color: Colors.white,
-            ),
-            Container(
-              width: 1,
-              height: 36,
-              margin: const EdgeInsets.symmetric(horizontal: 12),
-              color: _azulClaro,
-            ),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'FretApp',
-                    style: texto.titleLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    'Motorista',
-                    style: texto.bodyMedium?.copyWith(color: _azulClaro),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FundoCabecalho extends CustomPainter {
-  const _FundoCabecalho();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final area = Offset.zero & size;
-    canvas.drawRect(
-      area,
-      Paint()
-        ..shader = const LinearGradient(colors: [_azulEscuro, _azul])
-            .createShader(area),
-    );
-    final onda = Path()
-      ..moveTo(size.width * .48, size.height)
-      ..cubicTo(
-        size.width * .72,
-        size.height * .88,
-        size.width * .76,
-        size.height * .27,
-        size.width,
-        size.height * .33,
-      )
-      ..lineTo(size.width, size.height)
-      ..close();
-    canvas.drawPath(
-      onda,
-      Paint()
-        ..shader = const LinearGradient(colors: [_azul, Color(0xff3b82f6)])
-            .createShader(area),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_FundoCabecalho oldDelegate) => false;
+  Widget build(BuildContext context) => Card(child: child);
 }
 
 class _Inicio extends StatelessWidget {
@@ -306,21 +161,23 @@ class _Inicio extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final emViagem = modelo.situacao == SituacaoViagem.emAndamento;
     final mapa = LayoutBuilder(
       builder: (context, limites) {
-        final teto = (MediaQuery.sizeOf(context).height * .56).clamp(
-          280.0,
-          560.0,
+        final teto = (MediaQuery.sizeOf(context).height * .6).clamp(
+          320.0,
+          620.0,
         );
-        return MapaTrajetoDemo(
-          etapa: emViagem && modelo.etapaMapa == 0 ? -1 : modelo.etapaMapa,
+        return MapaMotorista(
+          posicao: modelo.posicao,
+          rastro: modelo.rastro,
+          trajeto: modelo.viagem?.trajeto ?? const [],
+          pontos: modelo.viagem?.pontos ?? const [],
+          aguardandoGps: modelo.localizacao == EstadoLocalizacao.permitida ||
+              modelo.localizacao == EstadoLocalizacao.solicitando,
+          aoCompartilhar: modelo.compartilharLocalizacao,
           altura: desktop
-              ? (limites.maxWidth / MapaTrajetoDemo.proporcaoOriginal).clamp(
-                  0.0,
-                  teto,
-                )
-              : null,
+              ? (limites.maxWidth * .62).clamp(320.0, teto)
+              : 360,
         );
       },
     );
@@ -328,11 +185,30 @@ class _Inicio extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: desktop ? 0 : 2),
-          child: _CartaoViagem(modelo: modelo, desktop: desktop),
-        ),
-        SizedBox(height: desktop ? 20 : 14),
+        if (modelo.carregandoViagem && modelo.viagem == null)
+          const _CartaoPainel(
+            child: EstadoCarregando(mensagem: 'Buscando a viagem de hoje…'),
+          )
+        else if (modelo.erroViagem != null)
+          _CartaoPainel(
+            child: EstadoErro(
+              mensagem: modelo.erroViagem,
+              aoTentarDeNovo: modelo.carregarViagem,
+            ),
+          )
+        else if (modelo.semViagem)
+          const _CartaoPainel(
+            child: EstadoVazio(
+              icone: Icons.event_busy_outlined,
+              titulo: 'Nenhuma viagem programada para hoje',
+              mensagem:
+                  'Quando o administrador programar uma viagem para você, '
+                  'ela aparece aqui.',
+            ),
+          )
+        else
+          _CartaoViagem(modelo: modelo, desktop: desktop),
+        SizedBox(height: desktop ? 24 : 12),
         Flex(
           direction: desktop ? Axis.horizontal : Axis.vertical,
           mainAxisSize: MainAxisSize.min,
@@ -357,9 +233,9 @@ class _Inicio extends StatelessWidget {
                     const SizedBox(height: 12),
                     _CartaoPainel(
                       child: ListTile(
-                        leading: const Icon(
+                        leading: Icon(
                           Icons.notifications_none_rounded,
-                          color: _azul,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                         title: const Text('Último aviso'),
                         subtitle: Semantics(
@@ -398,11 +274,18 @@ class _ResumoPassageiros extends StatelessWidget {
         children: [
           Text(
             'Resumo dos passageiros',
-            style: Theme.of(context).textTheme.titleSmall
-                ?.copyWith(color: _azulEscuro, fontWeight: FontWeight.bold),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          _ContadoresEmbarque(modelo: modelo),
+          if (modelo.carregando)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: LinearProgressIndicator(),
+            )
+          else
+            _ContadoresEmbarque(modelo: modelo),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
@@ -425,67 +308,68 @@ class _ControlesViagem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final emViagem = modelo.situacao == SituacaoViagem.emAndamento;
-    final (iconePrincipal, textoPrincipal) = switch (modelo.situacao) {
-      SituacaoViagem.aguardando => (Icons.play_arrow_rounded, 'Iniciar viagem'),
+    final cores = Theme.of(context).colorScheme;
+    final solicitando =
+        modelo.localizacao == EstadoLocalizacao.solicitando;
+
+    final (Widget icone, String texto, VoidCallback? acao) = switch (modelo
+        .situacao) {
+      SituacaoViagem.aguardando when solicitando => (
+        const SizedBox.square(
+          dimension: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        'Aguardando localização…',
+        null,
+      ),
+      SituacaoViagem.aguardando => (
+        const Icon(Icons.play_arrow_rounded),
+        'Iniciar viagem',
+        modelo.podeIniciar ? modelo.iniciarViagem : null,
+      ),
       SituacaoViagem.emAndamento => (
-        Icons.directions_bus_rounded,
+        const Icon(Icons.directions_bus_rounded),
         'Viagem em andamento',
+        null,
       ),
       SituacaoViagem.finalizada => (
-        Icons.check_circle_outline,
-        'Viagem finalizada',
+        const Icon(Icons.replay_rounded),
+        'Nova viagem',
+        modelo.novaViagem,
       ),
     };
-    final acoes = [
-      _Acao(
-        'Estou saindo',
-        Icons.login_rounded,
-        modelo.podeSair ? modelo.registrarSaida : null,
-      ),
-      _Acao(
-        'Cheguei ao ponto',
-        Icons.location_on_outlined,
-        modelo.podeChegar ? modelo.registrarChegada : null,
-      ),
-      _Acao(
-        'Finalizar',
-        Icons.sports_score_rounded,
-        modelo.podeFinalizar ? modelo.finalizarViagem : null,
-      ),
-    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _CartaoGps(modelo: modelo),
+        _CartaoLocalizacao(modelo: modelo),
         const SizedBox(height: 12),
         FilledButton.icon(
-          onPressed: modelo.podeIniciar ? modelo.iniciarViagem : null,
-          icon: Icon(iconePrincipal),
-          label: Text(textoPrincipal, textAlign: TextAlign.center),
+          onPressed: acao,
+          icon: icone,
+          label: Text(texto, textAlign: TextAlign.center),
           style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(54),
-            backgroundColor: _azul,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: emViagem ? _azulClaro : null,
-            disabledForegroundColor: emViagem ? _azulEscuro : null,
+            minimumSize: const Size.fromHeight(56),
+            // Em andamento o botão fica "travado" em azul-claro, não cinza.
+            disabledBackgroundColor:
+                modelo.situacao == SituacaoViagem.emAndamento
+                ? cores.primaryContainer
+                : null,
+            disabledForegroundColor:
+                modelo.situacao == SituacaoViagem.emAndamento
+                ? cores.onPrimaryContainer
+                : null,
             textStyle: Theme.of(context).textTheme.titleMedium,
           ),
         ),
         const SizedBox(height: 12),
-        if (desktop)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 8,
-            children: acoes,
-          )
-        else
-          Row(
-            spacing: 6,
-            children: [for (final acao in acoes) Expanded(child: acao)],
-          ),
+        _Acao(
+          'Finalizar viagem',
+          Icons.sports_score_rounded,
+          modelo.podeFinalizar ? modelo.finalizarViagem : null,
+        ),
         if (!desktop && modelo.ultimoAviso != null) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Semantics(
             liveRegion: true,
             child: Text(
@@ -508,8 +392,8 @@ class _CartaoViagem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final cores = tema.colorScheme;
     final textoRota = tema.textTheme.titleLarge?.copyWith(
-      color: _azulEscuro,
       fontWeight: FontWeight.bold,
     );
     final titulo = switch (modelo.situacao) {
@@ -526,7 +410,7 @@ class _CartaoViagem extends StatelessWidget {
           children: [
             Positioned(
               right: 2,
-              top: 3,
+              top: 4,
               bottom: 0,
               width: artWidth,
               child: const ExcludeSemantics(child: IlustracaoOnibus()),
@@ -536,44 +420,46 @@ class _CartaoViagem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 13,
-                      vertical: 7,
-                    ),
+                  DecoratedBox(
                     decoration: BoxDecoration(
-                      color: _azulClaro,
+                      color: cores.primaryContainer,
                       borderRadius: desktop
-                          ? BorderRadius.circular(14)
+                          ? BorderRadius.circular(12)
                           : const BorderRadius.horizontal(
-                              right: Radius.circular(14),
+                              right: Radius.circular(12),
                             ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.calendar_month_outlined,
-                          size: 21,
-                          color: _azul,
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            titulo,
-                            style: tema.textTheme.titleSmall?.copyWith(
-                              color: _azulEscuro,
-                              fontWeight: FontWeight.w700,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.calendar_month_outlined,
+                            size: 20,
+                            color: cores.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              titulo,
+                              style: tema.textTheme.titleSmall?.copyWith(
+                                color: cores.onPrimaryContainer,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                   Padding(
                     padding: desktop
                         ? const EdgeInsets.only(top: 8)
-                        : const EdgeInsets.fromLTRB(12, 9, 0, 11),
+                        : const EdgeInsets.fromLTRB(12, 8, 0, 12),
                     child: Semantics(
                       label: 'Rota de ${modelo.origem} para ${modelo.destino}',
                       excludeSemantics: true,
@@ -582,19 +468,18 @@ class _CartaoViagem extends StatelessWidget {
                         alignment: Alignment.centerLeft,
                         child: Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.location_on_rounded,
-                              color: _azul,
-                              size: 23,
+                              color: cores.primary,
+                              size: 24,
                             ),
-                            const SizedBox(width: 7),
+                            const SizedBox(width: 8),
                             Text(modelo.origem, style: textoRota),
                             const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 5),
+                              padding: EdgeInsets.symmetric(horizontal: 4),
                               child: Icon(
                                 Icons.arrow_forward_rounded,
-                                color: _azulEscuro,
-                                size: 21,
+                                size: 20,
                               ),
                             ),
                             Text(modelo.destino, style: textoRota),
@@ -613,7 +498,7 @@ class _CartaoViagem extends StatelessWidget {
     final dados = Padding(
       padding: desktop
           ? EdgeInsets.zero
-          : const EdgeInsets.fromLTRB(12, 10, 11, 12),
+          : const EdgeInsets.fromLTRB(12, 12, 12, 12),
       child: Row(
         children: [
           Expanded(
@@ -631,7 +516,7 @@ class _CartaoViagem extends StatelessWidget {
             child: _DadoViagem(
               Icons.directions_bus_outlined,
               'Veículo',
-              'Ônibus 12',
+              modelo.veiculo,
               desktop: desktop,
             ),
           ),
@@ -645,7 +530,7 @@ class _CartaoViagem extends StatelessWidget {
                   : modelo.totalPassageiros == 1
                   ? 'passageiro'
                   : 'passageiros',
-              modelo.totalPassageiros.toString(),
+              modelo.carregando ? '…' : modelo.totalPassageiros.toString(),
               valorPrimeiro: !desktop,
               desktop: desktop,
             ),
@@ -656,7 +541,7 @@ class _CartaoViagem extends StatelessWidget {
     return _CartaoPainel(
       child: desktop
           ? Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Row(
                 children: [
                   Expanded(flex: 4, child: rota),
@@ -669,7 +554,7 @@ class _CartaoViagem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 rota,
-                const Divider(height: 1, indent: 14, endIndent: 14),
+                const Divider(height: 1, indent: 12, endIndent: 12),
                 dados,
               ],
             ),
@@ -684,7 +569,7 @@ class _Divisoria extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     width: 1,
     height: 28,
-    color: _borda,
+    color: Theme.of(context).colorScheme.outlineVariant,
     margin: const EdgeInsets.symmetric(horizontal: 8),
   );
 }
@@ -714,15 +599,15 @@ class _DadoViagem extends StatelessWidget {
     final numero = Text(
       valor,
       style: (desktop ? tema.textTheme.titleLarge : tema.textTheme.titleMedium)
-          ?.copyWith(color: _azulEscuro, fontWeight: FontWeight.w700),
+          ?.copyWith(fontWeight: FontWeight.w700),
     );
     return FittedBox(
       fit: BoxFit.scaleDown,
       alignment: desktop ? Alignment.center : Alignment.centerLeft,
       child: Row(
         children: [
-          Icon(icone, size: 22, color: _azul),
-          SizedBox(width: desktop ? 10 : 6),
+          Icon(icone, size: 22, color: tema.colorScheme.primary),
+          SizedBox(width: desktop ? 12 : 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: valorPrimeiro ? [numero, nome] : [nome, numero],
@@ -733,54 +618,73 @@ class _DadoViagem extends StatelessWidget {
   }
 }
 
-class _CartaoGps extends StatelessWidget {
-  const _CartaoGps({required this.modelo});
+/// Mostra se o motorista já compartilhou a localização.
+/// A permissão é pedida ao tocar em "Iniciar viagem".
+class _CartaoLocalizacao extends StatelessWidget {
+  const _CartaoLocalizacao({required this.modelo});
   final MotoristaViewModel modelo;
 
   @override
   Widget build(BuildContext context) {
-    final ativo = modelo.gpsAtivado;
-    final cor = ativo ? Colors.green.shade800 : Colors.orange.shade900;
     final tema = Theme.of(context);
+    final (tom, icone, titulo, detalhe) = switch (modelo.localizacao) {
+      EstadoLocalizacao.naoSolicitada => (
+        TomStatus.neutro,
+        Icons.location_searching,
+        'Localização',
+        'Será solicitada ao iniciar a viagem',
+      ),
+      EstadoLocalizacao.solicitando => (
+        TomStatus.atencao,
+        Icons.location_searching,
+        'Aguardando permissão',
+        'Confirme o compartilhamento no aviso do navegador',
+      ),
+      EstadoLocalizacao.permitida => (
+        TomStatus.sucesso,
+        Icons.location_on,
+        'Localização compartilhada',
+        'GPS ativo nesta viagem',
+      ),
+      EstadoLocalizacao.negada => (
+        TomStatus.erro,
+        Icons.location_off,
+        'Localização não permitida',
+        'Libere o acesso à localização e toque em Iniciar viagem',
+      ),
+    };
+    final cores = CoresStatus.of(context).de(tom);
     return _CartaoPainel(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
+        padding: const EdgeInsets.all(12),
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: cor.withValues(alpha: .10),
-              child: Icon(
-                ativo ? Icons.location_on : Icons.location_off,
-                color: cor,
-              ),
+              backgroundColor: cores.fundo,
+              child: Icon(icone, color: cores.cor),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    ativo ? 'GPS ativado' : 'GPS desativado',
-                    style: tema.textTheme.titleMedium?.copyWith(
-                      color: cor,
-                      fontWeight: FontWeight.w600,
+              child: Semantics(
+                liveRegion: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titulo,
+                      style: tema.textTheme.titleMedium?.copyWith(
+                        color: cores.cor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  Text(
-                    'Localização simulada',
-                    style: tema.textTheme.bodySmall?.copyWith(
-                      color: tema.colorScheme.onSurfaceVariant,
+                    Text(
+                      detalhe,
+                      style: tema.textTheme.bodySmall?.copyWith(
+                        color: tema.colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            Semantics(
-              label: 'Simular GPS',
-              child: Switch(
-                value: ativo,
-                onChanged: modelo.definirGps,
-                activeTrackColor: cor,
+                  ],
+                ),
               ),
             ),
           ],
@@ -802,9 +706,6 @@ class _Acao extends StatelessWidget {
     style: OutlinedButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       minimumSize: const Size.fromHeight(48),
-      foregroundColor: _azul,
-      disabledForegroundColor: Theme.of(context).colorScheme.onSurfaceVariant
-          .withValues(alpha: .75),
     ),
     child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -829,44 +730,36 @@ class _AbaSecundaria extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final destino = _destinos[aba];
     final (titulo, texto) = switch (aba) {
       2 => (
         modelo.ultimoAviso ?? 'Nenhum aviso',
-        'Atividade local da viagem demonstrativa',
+        'Atividade da viagem de hoje',
       ),
-      _ => ('Motorista', 'Perfil de demonstração do FretApp'),
+      _ => ('Motorista', 'Seus dados de perfil aparecerão aqui'),
     };
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Semantics(
-            header: true,
-            child: Text(
-              _abas[aba],
-              style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(color: _azulEscuro, fontWeight: FontWeight.w700),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _CartaoPainel(
+          child: ListTile(
+            leading: Icon(
+              destino.icone,
+              color: Theme.of(context).colorScheme.primary,
             ),
+            title: Text(titulo),
+            subtitle: Text(texto),
           ),
-          const SizedBox(height: 14),
-          _CartaoPainel(
-            child: ListTile(
-              leading: Icon(_icones[aba], color: _azul),
-              title: Text(titulo),
-              subtitle: Text(texto),
-            ),
+        ),
+        if (aba == 3 && onSair != null) ...[
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: onSair,
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Sair'),
           ),
-          if (aba == 3 && onSair != null) ...[
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onSair,
-              icon: const Icon(Icons.logout_rounded),
-              label: const Text('Sair'),
-            ),
-          ],
         ],
-      ),
+      ],
     );
   }
 }
