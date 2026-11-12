@@ -1,7 +1,8 @@
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'admin_dashboard_view.dart';
+import 'motorista_view.dart';
 import 'passageiro_home_view.dart';
 
 class HomeView extends StatefulWidget {
@@ -40,84 +41,82 @@ class _HomeViewState extends State<HomeView> {
     } catch (_) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Não foi possível sair.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Não foi possível sair.')));
     }
   }
+
+  AppBar construirAppBar() => AppBar(
+    title: const Text('FretApp'),
+    actions: [
+      IconButton(
+        onPressed: sair,
+        icon: const Icon(Icons.logout),
+        tooltip: 'Sair',
+      ),
+    ],
+  );
 
   @override
   Widget build(BuildContext context) {
     final usuario = Supabase.instance.client.auth.currentUser;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('FretApp'),
-        actions: [
-          IconButton(
-            onPressed: sair,
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sair',
-          ),
-        ],
-      ),
-      body: FutureBuilder<String?>(
-        future: tipoFuturo,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+    return FutureBuilder<String?>(
+      future: tipoFuturo,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Scaffold(
+            appBar: construirAppBar(),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
 
-          if (snapshot.hasError) {
-            return const Center(
-              child: Text('Erro ao carregar o perfil.'),
-            );
-          }
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: construirAppBar(),
+            body: const Center(child: Text('Erro ao carregar o perfil.')),
+          );
+        }
 
-          final tipo = snapshot.data;
+        final tipo = snapshot.data;
 
-          if (tipo == null) {
-            return const Center(
-              child: Text('Usuário sem perfil cadastrado.'),
-            );
-          }
+        if (tipo == null) {
+          return Scaffold(
+            appBar: construirAppBar(),
+            body: const Center(child: Text('Usuário sem perfil cadastrado.')),
+          );
+        }
 
-          if (tipo == 'administrador') {
-            return const AdminDashboardView();
-          }
+        if (tipo == 'motorista') {
+          return MotoristaView(onSair: sair);
+        }
 
-          if (tipo == 'passageiro') {
-             return const PassageiroHomeView();
-          }
+        if (tipo == 'administrador') {
+          return Scaffold(
+            appBar: construirAppBar(),
+            body: const AdminDashboardView(),
+          );
+        }
 
+        if (tipo == 'passageiro') {
+          return Scaffold(
+            appBar: construirAppBar(),
+            body: const PassageiroHomeView(),
+          );
+        }
 
-          final titulo = switch (tipo) {
-            'administrador' => 'Painel do Administrador',
-            'motorista' => 'Área do Motorista',
-            'passageiro' => 'Área do Passageiro',
-            _ => 'Perfil não reconhecido',
-          };
-
-          return Center(
+        return Scaffold(
+          appBar: construirAppBar(),
+          body: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.directions_bus,
-                  size: 70,
-                  color: Colors.blue,
-                ),
+                const Icon(Icons.directions_bus, size: 70, color: Colors.blue),
                 const SizedBox(height: 20),
-                Text(
-                  titulo,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                  ),
+                const Text(
+                  'Perfil não reconhecido',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
                 Text(usuario?.email ?? ''),
@@ -129,9 +128,9 @@ class _HomeViewState extends State<HomeView> {
                 ),
               ],
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
