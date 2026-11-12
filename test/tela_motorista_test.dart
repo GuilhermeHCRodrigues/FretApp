@@ -34,7 +34,7 @@ Finder botaoPrincipal() => find.ancestor(
         const {
           'Iniciar viagem',
           'Viagem em andamento',
-          'Viagem finalizada',
+          'Nova viagem',
         }.contains(widget.data),
   ),
   matching: find.byWidgetPredicate((widget) => widget is FilledButton),
@@ -158,8 +158,10 @@ void main() {
           expect(area.left, greaterThan(0));
           expect(
             area.width,
-            inInclusiveRange(tamanho == desktopMinimo ? 976 : 1000, 1360),
+            inInclusiveRange(tamanho == desktopMinimo ? 976 : 1000, 1680),
           );
+          if (tamanho == notebook) expect(area.width, greaterThan(1300));
+          if (tamanho == monitor) expect(area.width, greaterThan(1600));
           expect(mapa.width, greaterThan(430));
           expect(mapa.right, lessThanOrEqualTo(iniciar.left));
           expect(mapa.right, lessThan(gps.left));
@@ -388,9 +390,20 @@ void main() {
       expect(find.text('Viagem em andamento'), findsOneWidget);
       await tocar(tester, chaveGps);
       await tocar(tester, find.text('Finalizar'));
-      expect(find.text('Viagem finalizada'), findsOneWidget);
-      await tocar(tester, chaveGps);
+      expect(find.text('Viagem encerrada'), findsOneWidget);
+      expect(find.text('Viagem finalizada.'), findsOneWidget);
+      expect(find.text('Nova viagem'), findsOneWidget);
+      expect(tester.widget<FilledButton>(botaoPrincipal()).enabled, isTrue);
+
+      await tocar(tester, find.text('Nova viagem'));
+      expect(find.text('Próxima viagem'), findsOneWidget);
+      expect(find.text('Iniciar viagem'), findsOneWidget);
       expect(tester.widget<FilledButton>(botaoPrincipal()).enabled, isFalse);
+
+      await tocar(tester, chaveGps);
+      expect(tester.widget<FilledButton>(botaoPrincipal()).enabled, isTrue);
+      await tocar(tester, find.text('Iniciar viagem'));
+      expect(find.text('Viagem em andamento'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

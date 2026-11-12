@@ -86,4 +86,33 @@ void main() {
     expect(motorista.ultimoAviso, contains('finalizada'));
     expect(notificacoes, 4);
   });
+
+  test('reinicia a demonstração e permite uma segunda viagem', () {
+    motorista.iniciarViagem();
+    motorista.registrarSaida();
+    motorista.registrarChegada();
+    motorista.finalizarViagem();
+
+    expect(motorista.situacao, SituacaoViagem.finalizada);
+    expect(motorista.podeReiniciarDemonstracao, isTrue);
+    expect(motorista.podeIniciar, isFalse);
+    expect(motorista.etapaMapa, 5);
+
+    motorista.reiniciarDemonstracao();
+
+    expect(motorista.situacao, SituacaoViagem.aguardando);
+    expect(motorista.podeReiniciarDemonstracao, isFalse);
+    expect(motorista.podeIniciar, isTrue);
+    expect(motorista.podeSair, isFalse);
+    expect(motorista.podeChegar, isFalse);
+    expect(motorista.podeFinalizar, isFalse);
+    expect(motorista.etapaMapa, 0);
+    expect(motorista.ultimoAviso, isNull);
+
+    motorista.iniciarViagem();
+
+    expect(motorista.situacao, SituacaoViagem.emAndamento);
+    expect(motorista.podeSair, isTrue);
+    expect(motorista.podeIniciar, isFalse);
+  });
 }
