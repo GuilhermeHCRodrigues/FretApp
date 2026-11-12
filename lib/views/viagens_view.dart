@@ -18,7 +18,7 @@ class _ViagensViewState extends State<ViagensView> {
   String filtroStatus = 'todas';
 
   static const statusDisponiveis = [
-    'agendada',
+    'programada',
     'em_andamento',
     'finalizada',
     'cancelada',
@@ -56,7 +56,7 @@ class _ViagensViewState extends State<ViagensView> {
   }
 
   String rotuloStatus(String status) => switch (status) {
-        'agendada' => 'Agendada',
+        'programada' => 'Programada',
         'em_andamento' => 'Em andamento',
         'finalizada' => 'Finalizada',
         'cancelada' => 'Cancelada',
@@ -64,7 +64,7 @@ class _ViagensViewState extends State<ViagensView> {
       };
 
   Color corStatus(String status) => switch (status) {
-        'agendada' => Colors.blue,
+        'programada' => Colors.blue,
         'em_andamento' => Colors.orange.shade800,
         'finalizada' => Colors.green.shade700,
         'cancelada' => Colors.red.shade700,
@@ -82,8 +82,31 @@ class _ViagensViewState extends State<ViagensView> {
       '${data.month.toString().padLeft(2, '0')}-'
       '${data.day.toString().padLeft(2, '0')}';
 
-  String hora(String? valor) =>
-      valor == null || valor.length < 5 ? '--:--' : valor.substring(0, 5);
+  DateTime? dataHoraSaida(Map<String, dynamic>? viagem) =>
+      DateTime.tryParse(viagem?['saida_prevista']?.toString() ?? '')?.toLocal();
+
+  String dataViagem(Map<String, dynamic>? viagem) {
+    final data = dataHoraSaida(viagem);
+    return data == null ? dataIso(DateTime.now()) : dataIso(data);
+  }
+
+  String horaSaida(Map<String, dynamic>? viagem) {
+    final data = dataHoraSaida(viagem);
+    if (data == null) return '--:--';
+    return '${data.hour.toString().padLeft(2, '0')}:${data.minute.toString().padLeft(2, '0')}';
+  }
+
+  String timestampSaida(DateTime data, String horario) {
+    final partes = horario.split(':');
+    final local = DateTime(
+      data.year,
+      data.month,
+      data.day,
+      int.parse(partes[0]),
+      int.parse(partes[1]),
+    );
+    return local.toUtc().toIso8601String();
+  }
 
   Future<void> abrirFormulario([Map<String, dynamic>? viagem]) async {
     if (vm.rotas.isEmpty || vm.motoristas.isEmpty || vm.veiculos.isEmpty) {
@@ -102,20 +125,19 @@ class _ViagensViewState extends State<ViagensView> {
     final observacoes = TextEditingController(
       text: viagem?['observacoes']?.toString() ?? '',
     );
-    final dataInicial = DateTime.tryParse(
-          viagem?['data_viagem']?.toString() ?? '',
-        ) ??
-        DateUtils.dateOnly(DateTime.now());
+    final dataInicial = DateUtils.dateOnly(
+      dataHoraSaida(viagem) ?? DateTime.now(),
+    );
     DateTime dataSelecionada = dataInicial;
 
     final horarioController = TextEditingController(
-      text: hora(viagem?['horario_saida']?.toString()),
+      text: horaSaida(viagem),
     );
 
     String? rotaId = viagem?['rota_id']?.toString();
     String? motoristaId = viagem?['motorista_id']?.toString();
     String? veiculoId = viagem?['veiculo_id']?.toString();
-    String status = viagem?['status']?.toString() ?? 'agendada';
+    String status = viagem?['status']?.toString() ?? 'programada';
 
     final passageirosAtuais =
         List<Map<String, dynamic>>.from(viagem?['viagem_passageiros'] ?? const []);
@@ -263,7 +285,7 @@ class _ViagensViewState extends State<ViagensView> {
                             )
                             .toList(),
                         onChanged: (valor) =>
-                            status = valor ?? 'agendada',
+                            status = valor ?? 'programada',
                       ),
                       const SizedBox(height: 20),
                       Row(
@@ -333,8 +355,7 @@ class _ViagensViewState extends State<ViagensView> {
                   'rota_id': rotaId,
                   'motorista_id': motoristaId,
                   'veiculo_id': veiculoId,
-                  'data_viagem': dataIso(dataSelecionada),
-                  'horario_saida': horarioController.text.trim(),
+                  'saida_prevista': timestampSaida(dataSelecionada, horarioController.text.trim()),
                   'status': status,
                   'observacoes': observacoes.text.trim().isEmpty
                       ? null
@@ -438,7 +459,7 @@ class _ViagensViewState extends State<ViagensView> {
   List<Map<String, dynamic>> get viagensFiltradas {
     final termo = buscaController.text.trim().toLowerCase();
     return vm.viagens.where((viagem) {
-      final status = viagem['status']?.toString() ?? 'agendada';
+      final status = viagem['status']?.toString() ?? 'programada';
       final rota = viagem['rotas'] as Map<String, dynamic>? ?? {};
       final motorista = viagem['motoristas'] as Map<String, dynamic>? ?? {};
       final texto = [
@@ -446,7 +467,7 @@ class _ViagensViewState extends State<ViagensView> {
         rota['origem'],
         rota['destino'],
         motorista['nome'],
-        viagem['data_viagem'],
+        viagem['saida_prevista'], 
       ].join(' ').toLowerCase();
       return (filtroStatus == 'todas' || status == filtroStatus) &&
           texto.contains(termo);
@@ -496,7 +517,7 @@ class _ViagensViewState extends State<ViagensView> {
                     _indicador('Total', vm.viagens.length, Colors.blue),
                     _indicador(
                       'Agendadas',
-                      vm.viagens.where((v) => v['status'] == 'agendada').length,
+                      vm.viagens.where((v) => v['status'] == 'programada').length,
                       Colors.blue,
                     ),
                     _indicador(
@@ -629,7 +650,7 @@ class _ViagensViewState extends State<ViagensView> {
           );
           final embarcados =
               passageiros.where((p) => p['embarcou'] == true).length;
-          final status = viagem['status']?.toString() ?? 'agendada';
+          final status = viagem['status']?.toString() ?? 'programada';
 
           return Card(
             margin: const EdgeInsets.symmetric(vertical: 5),
@@ -644,8 +665,8 @@ class _ViagensViewState extends State<ViagensView> {
               ),
               subtitle: Text(
                 '${rota['origem'] ?? '--'} → ${rota['destino'] ?? '--'}'
-                ' • ${formatarData(viagem['data_viagem'].toString())}'
-                ' • ${hora(viagem['horario_saida']?.toString())}',
+                ' • ${formatarData(dataViagem(viagem))}'
+                ' • ${horaSaida(viagem)}',
               ),
               childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               children: [
