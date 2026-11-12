@@ -28,26 +28,25 @@ class ViagensViewModel extends ChangeNotifier {
             .from('viagens')
             .select(
               '*, '
-              'rotas(nome, origem, destino), '
-              'motoristas(nome), '
-              'veiculos(placa, modelo, capacidade), '
+              'rotas!viagens_rota_id_fkey(nome, origem, destino), '
+              'motoristas:perfis!viagens_motorista_id_fkey(nome:nome_completo), '
+              'veiculos!viagens_veiculo_id_fkey(placa, modelo, capacidade), '
               'viagem_passageiros('
               'id, passageiro_id, embarcou, horario_embarque, '
               'passageiros(nome)'
               ')',
             )
-            .order('data_viagem', ascending: false)
-            .order('horario_saida'),
+            .order('saida_prevista', ascending: false),
         supabase
             .from('rotas')
             .select('id, nome, origem, destino, horario_saida')
             .eq('ativo', true)
             .order('nome'),
         supabase
-            .from('motoristas')
-            .select('id, nome')
-            .eq('ativo', true)
-            .order('nome'),
+            .from('perfis')
+            .select('id, nome:nome_completo')
+            .eq('tipo', 'motorista')
+            .order('nome:nome_completo'),
         supabase
             .from('veiculos')
             .select('id, placa, modelo, capacidade')
@@ -69,14 +68,14 @@ class ViagensViewModel extends ChangeNotifier {
       if (exception is PostgrestException) {
         if (exception.code == '42P01' || exception.code == '42703') {
           erro = 'A estrutura de viagens ainda não está pronta. '
-              'Execute a migração SQL de viagens no Supabase.';
+              'Confira a migration SQL aplicada no Supabase.';
         } else if (exception.code == '42501') {
           erro = 'Seu usuário não tem permissão para gerenciar viagens. '
               'Entre com uma conta de administrador.';
         } else if (exception.code == 'PGRST200' ||
             exception.code == 'PGRST201') {
           erro = 'Não foi possível localizar os relacionamentos das tabelas. '
-              'Confira as chaves estrangeiras da migração SQL.';
+              'Confira as chaves estrangeiras do Supabase.';
         } else {
           erro = 'Não foi possível carregar as viagens. '
               'Verifique as tabelas e a conexão com o Supabase.';
@@ -145,10 +144,7 @@ class ViagensViewModel extends ChangeNotifier {
   Future<void> atualizarStatus(String id, String status) async {
     await supabase
         .from('viagens')
-        .update({
-          'status': status,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
+        .update({'status': status})
         .eq('id', id);
     await carregar();
   }
