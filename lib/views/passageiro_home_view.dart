@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'mensagens_inbox_view.dart';
+
 class PassageiroHomeView extends StatefulWidget {
   const PassageiroHomeView({super.key});
 
@@ -593,8 +595,8 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
                   ),
                   actions: [
                     IconButton(
-                      onPressed: () => aviso(
-                        'Notificações em breve.',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const MensagensInboxView()),
                       ),
                       icon: const Icon(Icons.notifications_none),
                     ),
