@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'mensagens_inbox_view.dart';
+
 import '../models/passageiro_viagem.dart';
 import '../services/motorista_servico.dart' as servico;
 import '../tema/cores_status.dart';
@@ -730,6 +732,7 @@ class _AbaSecundaria extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (aba == 2) return const MensagensInboxView();
     final destino = _destinos[aba];
     final (titulo, texto) = switch (aba) {
       2 => (

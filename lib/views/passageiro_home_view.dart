@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/viagem_do_dia.dart';
 import '../services/motorista_servico.dart' show buscarViagemDoDia;
 import 'acompanhar_onibus_view.dart';
+import 'mensagens_inbox_view.dart';
 import 'widgets/comum/chip_status.dart';
 import 'widgets/comum/estados.dart';
 
@@ -628,8 +629,8 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
                   ),
                   actions: [
                     IconButton(
-                      onPressed: () => aviso(
-                        'Notificações em breve.',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const MensagensInboxView()),
                       ),
                       icon: const Icon(Icons.notifications_none),
                     ),

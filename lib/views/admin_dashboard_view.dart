@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'financeiro_view.dart';
+import 'mensagens_view.dart';
 
 import 'veiculos_view.dart';
 import 'motoristas_view.dart';
@@ -179,10 +180,12 @@ class _AdminDashboardViewState extends State<AdminDashboardView> {
         );
 
       case 7:
-        return paginaEmConstrucao(
-          'Mensagens',
-          Icons.message,
-          'Comunicados e avisos aos usuários.',
+        return MensagensView(
+          onVoltar: () {
+            setState(() {
+              paginaSelecionada = 0;
+            });
+          },
         );
 
       default:
