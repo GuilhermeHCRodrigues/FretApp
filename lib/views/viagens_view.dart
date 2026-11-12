@@ -56,20 +56,20 @@ class _ViagensViewState extends State<ViagensView> {
   }
 
   String rotuloStatus(String status) => switch (status) {
-        'programada' => 'Programada',
-        'em_andamento' => 'Em andamento',
-        'finalizada' => 'Finalizada',
-        'cancelada' => 'Cancelada',
-        _ => status,
-      };
+    'programada' => 'Programada',
+    'em_andamento' => 'Em andamento',
+    'finalizada' => 'Finalizada',
+    'cancelada' => 'Cancelada',
+    _ => status,
+  };
 
   Color corStatus(String status) => switch (status) {
-        'programada' => Colors.blue,
-        'em_andamento' => Colors.orange.shade800,
-        'finalizada' => Colors.green.shade700,
-        'cancelada' => Colors.red.shade700,
-        _ => Colors.grey,
-      };
+    'programada' => Colors.blue,
+    'em_andamento' => Colors.orange.shade800,
+    'finalizada' => Colors.green.shade700,
+    'cancelada' => Colors.red.shade700,
+    _ => Colors.grey,
+  };
 
   String formatarData(String data) {
     final partes = data.split('-');
@@ -130,17 +130,16 @@ class _ViagensViewState extends State<ViagensView> {
     );
     DateTime dataSelecionada = dataInicial;
 
-    final horarioController = TextEditingController(
-      text: horaSaida(viagem),
-    );
+    final horarioController = TextEditingController(text: horaSaida(viagem));
 
     String? rotaId = viagem?['rota_id']?.toString();
     String? motoristaId = viagem?['motorista_id']?.toString();
     String? veiculoId = viagem?['veiculo_id']?.toString();
     String status = viagem?['status']?.toString() ?? 'programada';
 
-    final passageirosAtuais =
-        List<Map<String, dynamic>>.from(viagem?['viagem_passageiros'] ?? const []);
+    final passageirosAtuais = List<Map<String, dynamic>>.from(
+      viagem?['viagem_passageiros'] ?? const [],
+    );
     final selecionados = passageirosAtuais
         .map((registro) => registro['passageiro_id'].toString())
         .toSet();
@@ -163,7 +162,7 @@ class _ViagensViewState extends State<ViagensView> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       DropdownButtonFormField<String>(
-                        value: rotaId,
+                        initialValue: rotaId,
                         isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Rota',
@@ -186,7 +185,7 @@ class _ViagensViewState extends State<ViagensView> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: motoristaId,
+                        initialValue: motoristaId,
                         isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Motorista',
@@ -206,7 +205,7 @@ class _ViagensViewState extends State<ViagensView> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: veiculoId,
+                        initialValue: veiculoId,
                         isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Veículo',
@@ -233,7 +232,9 @@ class _ViagensViewState extends State<ViagensView> {
                           Expanded(
                             child: OutlinedButton.icon(
                               icon: const Icon(Icons.calendar_month),
-                              label: Text(formatarData(dataIso(dataSelecionada))),
+                              label: Text(
+                                formatarData(dataIso(dataSelecionada)),
+                              ),
                               onPressed: () async {
                                 final escolhida = await showDatePicker(
                                   context: context,
@@ -243,7 +244,9 @@ class _ViagensViewState extends State<ViagensView> {
                                 );
                                 if (escolhida != null) {
                                   setDialogState(() {
-                                    dataSelecionada = DateUtils.dateOnly(escolhida);
+                                    dataSelecionada = DateUtils.dateOnly(
+                                      escolhida,
+                                    );
                                   });
                                 }
                               },
@@ -262,16 +265,16 @@ class _ViagensViewState extends State<ViagensView> {
                               keyboardType: TextInputType.datetime,
                               validator: (valor) =>
                                   RegExp(r'^([01]\d|2[0-3]):[0-5]\d$')
-                                          .hasMatch((valor ?? '').trim())
-                                      ? null
-                                      : 'Use HH:mm',
+                                      .hasMatch((valor ?? '').trim())
+                                  ? null
+                                  : 'Use HH:mm',
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: status,
+                        initialValue: status,
                         decoration: const InputDecoration(
                           labelText: 'Status da viagem',
                           border: OutlineInputBorder(),
@@ -284,8 +287,7 @@ class _ViagensViewState extends State<ViagensView> {
                               ),
                             )
                             .toList(),
-                        onChanged: (valor) =>
-                            status = valor ?? 'programada',
+                        onChanged: (valor) => status = valor ?? 'programada',
                       ),
                       const SizedBox(height: 20),
                       Row(
@@ -355,7 +357,10 @@ class _ViagensViewState extends State<ViagensView> {
                   'rota_id': rotaId,
                   'motorista_id': motoristaId,
                   'veiculo_id': veiculoId,
-                  'saida_prevista': timestampSaida(dataSelecionada, horarioController.text.trim()),
+                  'saida_prevista': timestampSaida(
+                    dataSelecionada,
+                    horarioController.text.trim(),
+                  ),
                   'status': status,
                   'observacoes': observacoes.text.trim().isEmpty
                       ? null
@@ -376,8 +381,9 @@ class _ViagensViewState extends State<ViagensView> {
     if (dados == null || !mounted) return;
 
     try {
-      final passageirosIds =
-          List<String>.from(dados.remove('passageiros_ids') as List);
+      final passageirosIds = List<String>.from(
+        dados.remove('passageiros_ids') as List,
+      );
       await vm.salvar(
         id: viagem?['id'] as String?,
         dados: dados,
@@ -395,27 +401,24 @@ class _ViagensViewState extends State<ViagensView> {
       );
     } catch (erro) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(mensagemErro(erro))),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(mensagemErro(erro))));
     }
   }
 
-  Future<void> alterarStatus(
-    Map<String, dynamic> viagem,
-    String status,
-  ) async {
+  Future<void> alterarStatus(Map<String, dynamic> viagem, String status) async {
     try {
       await vm.atualizarStatus(viagem['id'].toString(), status);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Status alterado para ${rotuloStatus(status)}.')),
+        SnackBar(
+          content: Text('Status alterado para ${rotuloStatus(status)}.'),
+        ),
       );
     } catch (erro) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(mensagemErro(erro))),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(mensagemErro(erro))));
     }
   }
 
@@ -445,14 +448,12 @@ class _ViagensViewState extends State<ViagensView> {
     try {
       await vm.excluir(viagem['id'].toString());
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Viagem excluída.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Viagem excluída.')));
     } catch (erro) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(mensagemErro(erro))),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(mensagemErro(erro))));
     }
   }
 
@@ -467,7 +468,7 @@ class _ViagensViewState extends State<ViagensView> {
         rota['origem'],
         rota['destino'],
         motorista['nome'],
-        viagem['saida_prevista'], 
+        viagem['saida_prevista'],
       ].join(' ').toLowerCase();
       return (filtroStatus == 'todas' || status == filtroStatus) &&
           texto.contains(termo);
@@ -476,121 +477,115 @@ class _ViagensViewState extends State<ViagensView> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: vm,
-        builder: (context, child) {
-          final lista = viagensFiltradas;
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: widget.onVoltar,
-                      icon: const Icon(Icons.arrow_back),
-                      tooltip: 'Voltar',
+    animation: vm,
+    builder: (context, child) {
+      final lista = viagensFiltradas;
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: widget.onVoltar,
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Voltar',
+                ),
+                const Expanded(
+                  child: Text(
+                    'Gerenciamento de viagens',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: () => abrirFormulario(),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Agendar viagem'),
+                ),
+              ],
+            ),
+          ),
+          if (vm.carregando) const LinearProgressIndicator(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _indicador('Total', vm.viagens.length, Colors.blue),
+                _indicador(
+                  'Agendadas',
+                  vm.viagens.where((v) => v['status'] == 'programada').length,
+                  Colors.blue,
+                ),
+                _indicador(
+                  'Em andamento',
+                  vm.viagens.where((v) => v['status'] == 'em_andamento').length,
+                  Colors.orange,
+                ),
+                _indicador(
+                  'Finalizadas',
+                  vm.viagens.where((v) => v['status'] == 'finalizada').length,
+                  Colors.green,
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: buscaController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      hintText: 'Buscar por rota, motorista ou data',
+                      border: OutlineInputBorder(),
+                      isDense: true,
                     ),
-                    const Expanded(
-                      child: Text(
-                        'Gerenciamento de viagens',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 180,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: filtroStatus,
+                    decoration: const InputDecoration(
+                      labelText: 'Status',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: 'todas',
+                        child: Text('Todas'),
+                      ),
+                      ...statusDisponiveis.map(
+                        (status) => DropdownMenuItem(
+                          value: status,
+                          child: Text(rotuloStatus(status)),
                         ),
                       ),
-                    ),
-                    FilledButton.icon(
-                      onPressed: () => abrirFormulario(),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Agendar viagem'),
-                    ),
-                  ],
+                    ],
+                    onChanged: (valor) =>
+                        setState(() => filtroStatus = valor ?? 'todas'),
+                  ),
                 ),
-              ),
-              if (vm.carregando) const LinearProgressIndicator(),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _indicador('Total', vm.viagens.length, Colors.blue),
-                    _indicador(
-                      'Agendadas',
-                      vm.viagens.where((v) => v['status'] == 'programada').length,
-                      Colors.blue,
-                    ),
-                    _indicador(
-                      'Em andamento',
-                      vm.viagens.where((v) => v['status'] == 'em_andamento').length,
-                      Colors.orange,
-                    ),
-                    _indicador(
-                      'Finalizadas',
-                      vm.viagens.where((v) => v['status'] == 'finalizada').length,
-                      Colors.green,
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: buscaController,
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.search),
-                          hintText: 'Buscar por rota, motorista ou data',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      width: 180,
-                      child: DropdownButtonFormField<String>(
-                        value: filtroStatus,
-                        decoration: const InputDecoration(
-                          labelText: 'Status',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: 'todas',
-                            child: Text('Todas'),
-                          ),
-                          ...statusDisponiveis.map(
-                            (status) => DropdownMenuItem(
-                              value: status,
-                              child: Text(rotuloStatus(status)),
-                            ),
-                          ),
-                        ],
-                        onChanged: (valor) =>
-                            setState(() => filtroStatus = valor ?? 'todas'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(child: _conteudo(lista)),
-            ],
-          );
-        },
+              ],
+            ),
+          ),
+          Expanded(child: _conteudo(lista)),
+        ],
       );
+    },
+  );
 
   Widget _indicador(String titulo, int valor, Color cor) => Chip(
-        avatar: CircleAvatar(
-          radius: 8,
-          backgroundColor: cor,
-        ),
-        label: Text('$titulo: $valor'),
-      );
+    avatar: CircleAvatar(radius: 8, backgroundColor: cor),
+    label: Text('$titulo: $valor'),
+  );
 
   Widget _conteudo(List<Map<String, dynamic>> lista) {
     if (vm.carregando && vm.viagens.isEmpty) {
@@ -648,8 +643,9 @@ class _ViagensViewState extends State<ViagensView> {
           final passageiros = List<Map<String, dynamic>>.from(
             viagem['viagem_passageiros'] ?? const [],
           );
-          final embarcados =
-              passageiros.where((p) => p['embarcou'] == true).length;
+          final embarcados = passageiros
+              .where((p) => p['embarcou'] == true)
+              .length;
           final status = viagem['status']?.toString() ?? 'programada';
 
           return Card(
@@ -678,14 +674,20 @@ class _ViagensViewState extends State<ViagensView> {
                     children: [
                       Chip(
                         label: Text(rotuloStatus(status)),
-                        backgroundColor: corStatus(status).withValues(alpha: .12),
+                        backgroundColor: corStatus(status)
+                            .withValues(alpha: .12),
                       ),
                       Chip(
                         avatar: const Icon(Icons.person_outline, size: 16),
-                        label: Text(motorista['nome']?.toString() ?? 'Sem motorista'),
+                        label: Text(
+                          motorista['nome']?.toString() ?? 'Sem motorista',
+                        ),
                       ),
                       Chip(
-                        avatar: const Icon(Icons.directions_bus_outlined, size: 16),
+                        avatar: const Icon(
+                          Icons.directions_bus_outlined,
+                          size: 16,
+                        ),
                         label: Text(
                           veiculo['placa']?.toString() ?? 'Sem veículo',
                         ),
@@ -726,9 +728,7 @@ class _ViagensViewState extends State<ViagensView> {
                         embarcou ? Icons.check_circle : Icons.schedule,
                         color: embarcou ? Colors.green : Colors.orange,
                       ),
-                      title: Text(
-                        pessoa['nome']?.toString() ?? 'Passageiro',
-                      ),
+                      title: Text(pessoa['nome']?.toString() ?? 'Passageiro'),
                       subtitle: Text(embarcou ? 'Embarcou' : 'Pendente'),
                     );
                   }),

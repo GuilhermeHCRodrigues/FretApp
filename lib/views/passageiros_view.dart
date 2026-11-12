@@ -30,30 +30,28 @@ class _PassageirosViewState extends State<PassageirosView> {
   String formatarData(DateTime data) {
     final dia = data.day.toString().padLeft(2, '0');
     final mes = data.month.toString().padLeft(2, '0');
-    return '$dia/$mes/' + data.year.toString();
+    return '$dia/$mes/${data.year}';
   }
 
   String dataIso(DateTime data) {
     final mes = data.month.toString().padLeft(2, '0');
     final dia = data.day.toString().padLeft(2, '0');
-    return data.year.toString() + '-$mes-$dia';
+    return '${data.year}-$mes-$dia';
   }
 
   String mascararCpf(String cpf) {
     final digitos = cpf.replaceAll(RegExp(r'\D'), '');
     if (digitos.length != 11) return 'CPF não informado';
-    return '***.***.***-' + digitos.substring(9);
+    return '***.***.***-${digitos.substring(9)}';
   }
 
   String formatarTelefone(String telefone) {
     final digitos = telefone.replaceAll(RegExp(r'\D'), '');
     if (digitos.length == 11) {
-      return '(' + digitos.substring(0, 2) + ') ' +
-          digitos.substring(2, 7) + '-' + digitos.substring(7);
+      return '(${digitos.substring(0, 2)}) ${digitos.substring(2, 7)}-${digitos.substring(7)}';
     }
     if (digitos.length == 10) {
-      return '(' + digitos.substring(0, 2) + ') ' +
-          digitos.substring(2, 6) + '-' + digitos.substring(6);
+      return '(${digitos.substring(0, 2)}) ${digitos.substring(2, 6)}-${digitos.substring(6)}';
     }
     return telefone;
   }
@@ -61,7 +59,7 @@ class _PassageirosViewState extends State<PassageirosView> {
   String formatarCep(String cep) {
     final digitos = cep.replaceAll(RegExp(r'\D'), '');
     if (digitos.length == 8) {
-      return digitos.substring(0, 5) + '-' + digitos.substring(5);
+      return '${digitos.substring(0, 5)}-${digitos.substring(5)}';
     }
     return cep;
   }
@@ -239,16 +237,22 @@ class _PassageirosViewState extends State<PassageirosView> {
                             final hoje = DateUtils.dateOnly(DateTime.now());
                             final escolhida = await showDatePicker(
                               context: dialogContext,
-                              initialDate: nascimento ??
-                                  DateTime(hoje.year - 18, hoje.month, hoje.day),
+                              initialDate:
+                                  nascimento ??
+                                  DateTime(
+                                    hoje.year - 18,
+                                    hoje.month,
+                                    hoje.day,
+                                  ),
                               firstDate: DateTime(1900),
                               lastDate: hoje,
                             );
                             if (escolhida != null) {
                               setDialogState(() {
                                 nascimento = escolhida;
-                                nascimentoController.text =
-                                    formatarData(escolhida);
+                                nascimentoController.text = formatarData(
+                                  escolhida,
+                                );
                               });
                             }
                           },
@@ -353,7 +357,8 @@ class _PassageirosViewState extends State<PassageirosView> {
                                   labelText: 'UF',
                                   border: OutlineInputBorder(),
                                 ),
-                                textCapitalization: TextCapitalization.characters,
+                                textCapitalization:
+                                    TextCapitalization.characters,
                                 maxLength: 2,
                                 validator: (v) {
                                   final texto = (v ?? '').trim();
@@ -456,8 +461,9 @@ class _PassageirosViewState extends State<PassageirosView> {
                     'cpf': cpf.replaceAll(RegExp(r'\D'), ''),
                     'telefone': telefone.replaceAll(RegExp(r'\D'), ''),
                     'email': email.trim().isEmpty ? null : email.trim(),
-                    'data_nascimento':
-                        nascimento == null ? null : dataIso(nascimento!),
+                    'data_nascimento': nascimento == null
+                        ? null
+                        : dataIso(nascimento!),
                     'cep': cep.replaceAll(RegExp(r'\D'), ''),
                     'logradouro': logradouro.trim(),
                     'numero': numero.trim(),
@@ -466,8 +472,10 @@ class _PassageirosViewState extends State<PassageirosView> {
                     'cidade': cidade.trim(),
                     'uf': uf.trim().toUpperCase(),
                     'nome_responsavel': nomeResponsavel.trim(),
-                    'telefone_responsavel':
-                        telefoneResponsavel.replaceAll(RegExp(r'\D'), ''),
+                    'telefone_responsavel': telefoneResponsavel.replaceAll(
+                      RegExp(r'\D'),
+                      '',
+                    ),
                     'observacoes': observacoes.trim(),
                     'ativo': ativo,
                   });
@@ -509,8 +517,7 @@ class _PassageirosViewState extends State<PassageirosView> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Excluir passageiro?'),
         content: Text(
-          'Deseja realmente excluir o cadastro de ' +
-              passageiro['nome'].toString() + '?',
+          'Deseja realmente excluir o cadastro de ${passageiro['nome']}?',
         ),
         actions: [
           TextButton(
@@ -629,15 +636,16 @@ class _PassageirosViewState extends State<PassageirosView> {
           final nascimento = DateTime.tryParse(
             passageiro['data_nascimento']?.toString() ?? '',
           );
-          final endereco = [
-            passageiro['logradouro'],
-            passageiro['numero'],
-            passageiro['bairro'],
-            passageiro['cidade'],
-            passageiro['uf'],
-          ]
-              .where((parte) => (parte?.toString() ?? '').trim().isNotEmpty)
-              .join(', ');
+          final endereco =
+              [
+                    passageiro['logradouro'],
+                    passageiro['numero'],
+                    passageiro['bairro'],
+                    passageiro['cidade'],
+                    passageiro['uf'],
+                  ]
+                  .where((parte) => (parte?.toString() ?? '').trim().isNotEmpty)
+                  .join(', ');
 
           return Card(
             child: ListTile(
@@ -654,38 +662,26 @@ class _PassageirosViewState extends State<PassageirosView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'CPF: ' +
-                          mascararCpf(passageiro['cpf']?.toString() ?? '') +
-                          '  •  ' +
-                          formatarTelefone(telefone),
+                      'CPF: ${mascararCpf(passageiro['cpf']?.toString() ?? '')}  •  ${formatarTelefone(telefone)}',
                     ),
                     if ((passageiro['email']?.toString() ?? '').isNotEmpty)
-                      Text('E-mail: ' + passageiro['email'].toString()),
+                      Text('E-mail: ${passageiro['email']}'),
                     if (nascimento != null)
-                      Text('Nascimento: ' + formatarData(nascimento)),
-                    if (endereco.isNotEmpty) Text('Endereço: ' + endereco),
+                      Text('Nascimento: ${formatarData(nascimento)}'),
+                    if (endereco.isNotEmpty) Text('Endereço: $endereco'),
                     if ((passageiro['cep']?.toString() ?? '').isNotEmpty)
-                      Text(
-                        'CEP: ' + formatarCep(passageiro['cep'].toString()),
-                      ),
+                      Text('CEP: ${formatarCep(passageiro['cep'].toString())}'),
                     if ((passageiro['nome_responsavel']?.toString() ?? '')
                         .isNotEmpty)
-                      Text(
-                        'Responsável: ' +
-                            passageiro['nome_responsavel'].toString(),
-                      ),
+                      Text('Responsável: ${passageiro['nome_responsavel']}'),
                     if ((passageiro['telefone_responsavel']?.toString() ?? '')
                         .isNotEmpty)
                       Text(
-                        'Telefone do responsável: ' +
-                            formatarTelefone(
-                              passageiro['telefone_responsavel'].toString(),
-                            ),
+                        'Telefone do responsável: ${formatarTelefone(passageiro['telefone_responsavel'].toString())}',
                       ),
-                    if ((passageiro['observacoes']?.toString() ?? '').isNotEmpty)
-                      Text(
-                        'Observações: ' + passageiro['observacoes'].toString(),
-                      ),
+                    if ((passageiro['observacoes']?.toString() ?? '')
+                        .isNotEmpty)
+                      Text('Observações: ${passageiro['observacoes']}'),
                     const SizedBox(height: 6),
                     Chip(
                       label: Text(ativo ? 'Ativo' : 'Inativo'),

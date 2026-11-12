@@ -43,13 +43,13 @@ class _MotoristasViewState extends State<MotoristasView> {
   String formatarData(DateTime data) {
     final dia = data.day.toString().padLeft(2, '0');
     final mes = data.month.toString().padLeft(2, '0');
-    return '${dia}/${mes}/${data.year}';
+    return '$dia/$mes/${data.year}';
   }
 
   String dataIso(DateTime data) {
     final mes = data.month.toString().padLeft(2, '0');
     final dia = data.day.toString().padLeft(2, '0');
-    return '${data.year}-${mes}-${dia}';
+    return '${data.year}-$mes-$dia';
   }
 
   String mascararCpf(String cpf) {
@@ -143,7 +143,7 @@ class _MotoristasViewState extends State<MotoristasView> {
     var ativo = motorista?['ativo'] as bool? ?? true;
     DateTime? validadeCnh = DateTime.tryParse(valor('cnh_validade'));
     final validadeController = TextEditingController(
-      text: validadeCnh == null ? '' : formatarData(validadeCnh!),
+      text: validadeCnh == null ? '' : formatarData(validadeCnh),
     );
 
     final dados = await showDialog<Map<String, dynamic>>(
