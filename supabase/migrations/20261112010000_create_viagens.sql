@@ -1,59 +1,56 @@
--- Estrutura do gerenciamento administrativo de viagens do FretApp.
--- Execute no SQL Editor do Supabase antes de abrir a tela Viagens.
+-- FretApp - complemento do gerenciamento administrativo de viagens.
+-- A tabela public.viagens já existe no schema do projeto.
+-- Esta migration preserva sua estrutura e apenas adiciona o necessário.
 
-create table if not exists public.viagens (
-  id uuid primary key default gen_random_uuid(),
-  rota_id uuid not null references public.rotas(id) on delete restrict,
-  motorista_id uuid references public.motoristas(id) on delete set null,
-  veiculo_id uuid references public.veiculos(id) on delete set null,
-  data_viagem date not null,
-  horario_saida time not null,
-  status text not null default 'agendada'
-    check (status in ('agendada', 'em_andamento', 'finalizada', 'cancelada')),
-  observacoes text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+ALTER TABLE public.viagens
+  ADD COLUMN IF NOT EXISTS observacoes TEXT;
+
+CREATE TABLE IF NOT EXISTS public.viagem_passageiros (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  viagem_id UUID NOT NULL
+    REFERENCES public.viagens(id) ON DELETE CASCADE,
+  passageiro_id UUID NOT NULL
+    REFERENCES public.passageiros(id) ON DELETE RESTRICT,
+  ponto_embarque_id UUID
+    REFERENCES public.pontos_rota(id) ON DELETE SET NULL,
+  embarcou BOOLEAN NOT NULL DEFAULT FALSE,
+  horario_embarque TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT viagem_passageiros_unicos
+    UNIQUE (viagem_id, passageiro_id)
 );
 
-create table if not exists public.viagem_passageiros (
-  id uuid primary key default gen_random_uuid(),
-  viagem_id uuid not null references public.viagens(id) on delete cascade,
-  passageiro_id uuid not null references public.passageiros(id) on delete restrict,
-  ponto_embarque_id uuid references public.pontos_rota(id) on delete set null,
-  embarcou boolean not null default false,
-  horario_embarque timestamptz,
-  created_at timestamptz not null default now(),
-  constraint viagem_passageiros_unicos unique (viagem_id, passageiro_id)
-);
+CREATE INDEX IF NOT EXISTS idx_viagens_data_status
+  ON public.viagens (saida_prevista, status);
+CREATE INDEX IF NOT EXISTS idx_viagem_passageiros_viagem
+  ON public.viagem_passageiros (viagem_id);
+CREATE INDEX IF NOT EXISTS idx_viagem_passageiros_passageiro
+  ON public.viagem_passageiros (passageiro_id);
 
-create index if not exists viagens_data_status_idx
-  on public.viagens (data_viagem, status);
-create index if not exists viagens_rota_idx
-  on public.viagens (rota_id);
-create index if not exists viagens_motorista_idx
-  on public.viagens (motorista_id);
-create index if not exists viagens_veiculo_idx
-  on public.viagens (veiculo_id);
-create index if not exists viagem_passageiros_viagem_idx
-  on public.viagem_passageiros (viagem_id);
-create index if not exists viagem_passageiros_passageiro_idx
-  on public.viagem_passageiros (passageiro_id);
+ALTER TABLE public.viagem_passageiros ENABLE ROW LEVEL SECURITY;
 
-alter table public.viagens enable row level security;
-alter table public.viagem_passageiros enable row level security;
+DROP POLICY IF EXISTS "Administradores gerenciam passageiros das viagens"
+  ON public.viagem_passageiros;
 
-drop policy if exists "Administradores gerenciam viagens" on public.viagens;
-create policy "Administradores gerenciam viagens"
-on public.viagens for all to authenticated
-using (public.fretapp_usuario_e_administrador())
-with check (public.fretapp_usuario_e_administrador());
+CREATE POLICY "Administradores gerenciam passageiros das viagens"
+  ON public.viagem_passageiros
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.perfis p
+      WHERE p.id = (SELECT auth.uid())
+        AND LOWER(p.tipo) IN ('admin', 'administrador')
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1
+      FROM public.perfis p
+      WHERE p.id = (SELECT auth.uid())
+        AND LOWER(p.tipo) IN ('admin', 'administrador')
+    )
+  );
 
-drop policy if exists "Administradores gerenciam passageiros das viagens"
-on public.viagem_passageiros;
-create policy "Administradores gerenciam passageiros das viagens"
-on public.viagem_passageiros for all to authenticated
-using (public.fretapp_usuario_e_administrador())
-with check (public.fretapp_usuario_e_administrador());
-
-grant select, insert, update, delete on public.viagens to authenticated;
-grant select, insert, update, delete on public.viagem_passageiros to authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON public.viagem_passageiros TO authenticated;
