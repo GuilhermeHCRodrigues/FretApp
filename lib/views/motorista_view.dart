@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'mensagens_inbox_view.dart';
+
 import '../models/passageiro_viagem.dart';
 import '../viewmodels/motorista_viewmodel.dart';
 import 'widgets/ilustracao_onibus.dart';
@@ -829,6 +831,7 @@ class _AbaSecundaria extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (aba == 2) return const MensagensInboxView();
     final (titulo, texto) = switch (aba) {
       2 => (
         modelo.ultimoAviso ?? 'Nenhum aviso',
