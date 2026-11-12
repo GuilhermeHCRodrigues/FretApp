@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'financeiro_view.dart';
+
 import 'veiculos_view.dart';
 import 'motoristas_view.dart';
 import 'passageiros_view.dart';
@@ -168,10 +170,12 @@ class _AdminDashboardViewState extends State<AdminDashboardView> {
         );
 
       case 6:
-        return paginaEmConstrucao(
-          'Financeiro',
-          Icons.account_balance_wallet,
-          'Mensalidades e pagamentos.',
+        return FinanceiroView(
+          onVoltar: () {
+            setState(() {
+              paginaSelecionada = 0;
+            });
+          },
         );
 
       case 7:
