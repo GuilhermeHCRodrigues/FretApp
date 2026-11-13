@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'tema/app_tema.dart';
 import 'views/login_view.dart';
 import 'views/home_view.dart';
 
@@ -36,12 +37,7 @@ class FretApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'FretApp',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-        ),
-        useMaterial3: true,
-      ),
+      theme: AppTema.claro,
       home: StreamBuilder<AuthState>(
         stream: auth.onAuthStateChange,
         builder: (context, snapshot) {

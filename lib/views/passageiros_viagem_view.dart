@@ -1,5 +1,6 @@
 part of 'motorista_view.dart';
 
+/// Lista de embarque: passageiros que responderam a enquete de hoje.
 class PassageirosViagemView extends StatefulWidget {
   const PassageirosViagemView({
     super.key,
@@ -38,68 +39,67 @@ class _PassageirosViagemViewState extends State<PassageirosViagemView> {
   @override
   Widget build(BuildContext context) {
     final modelo = widget.modelo;
-    final tema = Theme.of(context);
     final passageiros = modelo.passageirosFiltrados;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Semantics(
-          header: true,
-          child: Text(
-            'Passageiros',
-            style: tema.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
         _ResumoEmbarque(modelo: modelo, desktop: widget.desktop),
         const SizedBox(height: 16),
-        TextField(
-          controller: _busca,
-          onChanged: modelo.pesquisar,
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-            labelText: 'Buscar por nome',
-            prefixIcon: const Icon(Icons.search),
-            suffixIcon: modelo.busca.isEmpty
-                ? null
-                : IconButton(
-                    tooltip: 'Limpar busca',
-                    icon: const Icon(Icons.close),
-                    onPressed: () => modelo.pesquisar(''),
-                  ),
-            border: const OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (passageiros.isEmpty)
-          Semantics(
-            liveRegion: true,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Column(
-                children: [
-                  Icon(
-                    modelo.totalPassageiros == 0
-                        ? Icons.people_outline
-                        : Icons.search_off,
-                    size: 40,
-                    color: tema.colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    modelo.totalPassageiros == 0
-                        ? 'Nenhum passageiro nesta viagem'
-                        : 'Nenhum passageiro encontrado',
-                    textAlign: TextAlign.center,
-                    style: tema.textTheme.bodyLarge,
-                  ),
-                ],
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _busca,
+                onChanged: modelo.pesquisar,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  labelText: 'Buscar por nome',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: modelo.busca.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Limpar busca',
+                          icon: const Icon(Icons.close),
+                          onPressed: () => modelo.pesquisar(''),
+                        ),
+                ),
               ),
             ),
+            if (modelo.fontePassageiros != null) ...[
+              const SizedBox(width: 8),
+              IconButton.outlined(
+                tooltip: 'Atualizar lista da enquete',
+                onPressed: modelo.carregando
+                    ? null
+                    : modelo.carregarPassageiros,
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (modelo.carregando && modelo.totalPassageiros == 0)
+          const EstadoCarregando(mensagem: 'Buscando a enquete de hoje…')
+        else if (modelo.erroPassageiros != null)
+          EstadoErro(
+            mensagem: modelo.erroPassageiros,
+            aoTentarDeNovo: modelo.carregarPassageiros,
+          )
+        else if (passageiros.isEmpty)
+          Semantics(
+            liveRegion: true,
+            child: modelo.totalPassageiros == 0
+                ? const EstadoVazio(
+                    icone: Icons.how_to_vote_outlined,
+                    titulo: 'Ninguém confirmou presença hoje',
+                    mensagem:
+                        'Os passageiros aparecem aqui quando respondem a '
+                        'enquete do dia.',
+                  )
+                : const EstadoVazio(
+                    icone: Icons.search_off,
+                    titulo: 'Nenhum passageiro encontrado',
+                  ),
           )
         else
           LayoutBuilder(
@@ -197,18 +197,21 @@ class _ContadoresEmbarque extends StatelessWidget {
   final MotoristaViewModel modelo;
 
   @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _ContadorEmbarque(
-        'Total',
-        modelo.totalPassageiros,
-        Theme.of(context).colorScheme.primary,
-      ),
-      _ContadorEmbarque('Embarcados', modelo.embarcados, Colors.green.shade800),
-      _ContadorEmbarque('Pendentes', modelo.pendentes, Colors.orange.shade900),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final status = CoresStatus.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ContadorEmbarque(
+          'Total',
+          modelo.totalPassageiros,
+          Theme.of(context).colorScheme.primary,
+        ),
+        _ContadorEmbarque('Embarcados', modelo.embarcados, status.sucesso.cor),
+        _ContadorEmbarque('Pendentes', modelo.pendentes, status.atencao.cor),
+      ],
+    );
+  }
 }
 
 class _ContadorEmbarque extends StatelessWidget {
@@ -252,12 +255,15 @@ class _CartaoPassageiro extends StatelessWidget {
     final tema = Theme.of(context);
     final embarcou = passageiro.embarcou;
     final acao = embarcou ? 'Desfazer' : 'Confirmar';
-    final corStatus = embarcou ? Colors.green.shade800 : Colors.orange.shade900;
     final rotuloAcao = '$acao embarque de ${passageiro.nome}';
     final textoAcao = Text(acao, semanticsLabel: rotuloAcao);
+    final detalhe = [
+      if (passageiro.trajeto != null) statusTrajeto(passageiro.trajeto).rotulo,
+      if (passageiro.pontoEmbarque != null) passageiro.pontoEmbarque!,
+    ].join(' · ');
     return _CartaoPainel(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -274,29 +280,24 @@ class _CartaoPassageiro extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              subtitle: Text(passageiro.pontoEmbarque),
+              subtitle: detalhe.isEmpty ? null : Text(detalhe),
             ),
             OverflowBar(
               alignment: MainAxisAlignment.spaceBetween,
               overflowAlignment: OverflowBarAlignment.start,
               spacing: 8,
               children: [
-                Chip(
-                  avatar: Icon(
-                    embarcou ? Icons.check_circle_outline : Icons.schedule,
-                    size: 16,
-                    color: corStatus,
-                  ),
-                  label: Text(embarcou ? 'Embarcou' : 'Pendente'),
-                  labelStyle: tema.textTheme.labelMedium?.copyWith(
-                    color: corStatus,
-                  ),
-                  backgroundColor: corStatus.withValues(alpha: 0.10),
-                  side: BorderSide.none,
-                  shape: const StadiumBorder(),
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
+                embarcou
+                    ? ChipStatus(
+                        rotulo: 'Embarcou',
+                        tom: TomStatus.sucesso,
+                        icone: Icons.check_circle_outline,
+                      )
+                    : const ChipStatus(
+                        rotulo: 'Pendente',
+                        tom: TomStatus.atencao,
+                        icone: Icons.schedule,
+                      ),
                 Tooltip(
                   message: rotuloAcao,
                   excludeFromSemantics: true,

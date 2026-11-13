@@ -100,10 +100,9 @@ class _HomeViewState extends State<HomeView> {
         }
 
         if (tipo == 'passageiro') {
-          return Scaffold(
-            appBar: construirAppBar(),
-            body: const PassageiroHomeView(),
-          );
+          // A tela do passageiro já tem a própria AppBar (celular) e o menu
+          // lateral com "Sair" (desktop); envolver aqui duplicava a barra.
+          return const PassageiroHomeView();
         }
 
         return Scaffold(

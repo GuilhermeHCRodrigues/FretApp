@@ -4,7 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/viagem_do_dia.dart';
+import '../services/motorista_servico.dart' show buscarViagemDoDia;
+import 'acompanhar_onibus_view.dart';
 import 'mensagens_inbox_view.dart';
+import 'widgets/comum/chip_status.dart';
+import 'widgets/comum/estados.dart';
 
 class PassageiroHomeView extends StatefulWidget {
   const PassageiroHomeView({super.key});
@@ -40,6 +45,11 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
   String? nomeCompleto;
   String? telefone;
   String? instituicao;
+
+  // Viagem programada pelo administrador para hoje (viagem_do_dia).
+  ViagemDoDia? proximaViagem;
+  bool carregandoViagem = true;
+  bool erroViagem = false;
 
   // Enquete do dia: 'ida_volta', 'ida', 'volta' ou 'nao_vai'.
   // null = ainda não respondeu hoje.
@@ -345,6 +355,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
       });
 
       carregarContagem();
+      carregarViagem();
     } catch (e) {
       debugPrint('Erro ao carregar dados do passageiro: $e');
       if (!mounted) return;
@@ -375,6 +386,29 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
     }
 
     return textoOuNulo(resposta[coluna]);
+  }
+
+  /// Viagem do dia; falha aqui não derruba o resto da tela.
+  Future<void> carregarViagem() async {
+    setState(() {
+      carregandoViagem = true;
+      erroViagem = false;
+    });
+    try {
+      final viagem = await buscarViagemDoDia();
+      if (!mounted) return;
+      setState(() {
+        proximaViagem = viagem;
+        carregandoViagem = false;
+      });
+    } catch (e) {
+      debugPrint('Erro ao carregar a viagem do dia: $e');
+      if (!mounted) return;
+      setState(() {
+        carregandoViagem = false;
+        erroViagem = true;
+      });
+    }
   }
 
   /// Busca quantas pessoas escolheram cada opção hoje (só números).
@@ -599,6 +633,11 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
                         MaterialPageRoute(builder: (_) => const MensagensInboxView()),
                       ),
                       icon: const Icon(Icons.notifications_none),
+                    ),
+                    IconButton(
+                      onPressed: sair,
+                      icon: const Icon(Icons.logout),
+                      tooltip: 'Sair',
                     ),
                   ],
                 ),
@@ -1072,6 +1111,38 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
   }
 
   Widget construirCartaoViagem() {
+    final viagem = proximaViagem;
+
+    // Sem dados da viagem: mostra o motivo, mas o mapa do ônibus continua
+    // na tela (o ônibus ao vivo não depende da viagem programada).
+    if (viagem == null) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: cartaoDecoracao(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (carregandoViagem)
+              const EstadoCarregando(mensagem: 'Buscando a viagem de hoje…')
+            else if (erroViagem)
+              EstadoErro(
+                titulo: 'Não foi possível carregar a viagem',
+                aoTentarDeNovo: carregarViagem,
+              )
+            else
+              const EstadoVazio(
+                icone: Icons.event_busy_outlined,
+                titulo: 'Nenhuma viagem programada para hoje',
+              ),
+            const SizedBox(height: 16),
+            const MapaOnibusAoVivo(),
+          ],
+        ),
+      );
+    }
+
+    final embarque = viagem.pontos.isNotEmpty ? viagem.pontos.first : null;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: cartaoDecoracao(),
@@ -1090,20 +1161,31 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
                 ),
               ),
               const Spacer(),
-              etiqueta('Programada', Colors.green),
+              ChipStatus.viagem(viagem.status),
             ],
           ),
 
           const SizedBox(height: 12),
 
-          const Text(
-            '07:00',
-            style: TextStyle(
+          Text(
+            embarque?.horario ?? viagem.horarioSaida,
+            style: const TextStyle(
               color: azul,
               fontSize: 40,
               fontWeight: FontWeight.bold,
             ),
           ),
+
+          if (viagem.nomeRota != null)
+            Text(
+              [
+                viagem.nomeRota!,
+                if (viagem.distanciaKm != null)
+                  '${viagem.distanciaKm!.toStringAsFixed(1).replaceAll('.', ',')} km',
+                if (viagem.duracaoMin != null) '~${viagem.duracaoMin} min',
+              ].join(' · '),
+              style: const TextStyle(color: Colors.blueGrey),
+            ),
 
           const Divider(height: 30),
 
@@ -1111,7 +1193,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
             Icons.trip_origin,
             Colors.green,
             'Ponto de embarque',
-            'Ponto cadastrado',
+            embarque?.nome ?? viagem.origem,
           ),
 
           const SizedBox(height: 20),
@@ -1120,24 +1202,14 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
             Icons.location_on,
             Colors.red,
             'Destino',
-            instituicao ?? 'Instituição não informada',
+            viagem.destino,
           ),
 
           const SizedBox(height: 24),
 
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => aviso(
-                'O rastreamento será implementado em breve.',
-              ),
-              icon: const Icon(Icons.location_searching),
-              label: const Text('Acompanhar ônibus'),
-              style: FilledButton.styleFrom(
-                backgroundColor: azul,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-              ),
-            ),
+          MapaOnibusAoVivo(
+            trajeto: viagem.trajeto,
+            pontos: viagem.pontos,
           ),
         ],
       ),
