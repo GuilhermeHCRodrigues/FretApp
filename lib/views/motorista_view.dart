@@ -63,10 +63,15 @@ class _MotoristaViewState extends State<MotoristaView> {
           final larguraMaxima = switch (largura) {
             < 600 => largura,
             < 1024 => 720.0,
-            _ => 1360.0,
+            _ => 1680.0,
+          };
+          final margemHorizontal = switch (largura) {
+            < 600 => 0.0,
+            < 1024 => 24.0,
+            _ => 16.0,
           };
           return Padding(
-            padding: EdgeInsets.symmetric(horizontal: largura >= 600 ? 24 : 0),
+            padding: EdgeInsets.symmetric(horizontal: margemHorizontal),
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: larguraMaxima),
@@ -428,15 +433,25 @@ class _ControlesViagem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final emViagem = modelo.situacao == SituacaoViagem.emAndamento;
-    final (iconePrincipal, textoPrincipal) = switch (modelo.situacao) {
-      SituacaoViagem.aguardando => (Icons.play_arrow_rounded, 'Iniciar viagem'),
+    final (
+      iconePrincipal,
+      textoPrincipal,
+      acaoPrincipal,
+    ) = switch (modelo.situacao) {
+      SituacaoViagem.aguardando => (
+        Icons.play_arrow_rounded,
+        'Iniciar viagem',
+        modelo.podeIniciar ? modelo.iniciarViagem : null,
+      ),
       SituacaoViagem.emAndamento => (
         Icons.directions_bus_rounded,
         'Viagem em andamento',
+        null,
       ),
       SituacaoViagem.finalizada => (
-        Icons.check_circle_outline,
-        'Viagem finalizada',
+        Icons.replay_rounded,
+        'Nova viagem',
+        modelo.podeReiniciarDemonstracao ? modelo.reiniciarDemonstracao : null,
       ),
     };
     final acoes = [
@@ -462,7 +477,7 @@ class _ControlesViagem extends StatelessWidget {
         _CartaoGps(modelo: modelo),
         const SizedBox(height: 12),
         FilledButton.icon(
-          onPressed: modelo.podeIniciar ? modelo.iniciarViagem : null,
+          onPressed: acaoPrincipal,
           icon: Icon(iconePrincipal),
           label: Text(textoPrincipal, textAlign: TextAlign.center),
           style: FilledButton.styleFrom(

@@ -70,6 +70,8 @@ class MotoristaViewModel extends ChangeNotifier {
 
   bool get podeFinalizar => situacao == SituacaoViagem.emAndamento;
 
+  bool get podeReiniciarDemonstracao => situacao == SituacaoViagem.finalizada;
+
   void definirGps(bool ativado) {
     if (_gpsAtivado == ativado) return;
     _gpsAtivado = ativado;
@@ -106,6 +108,18 @@ class MotoristaViewModel extends ChangeNotifier {
     _situacao = SituacaoViagem.finalizada;
     _etapaMapa = 5;
     _ultimoAviso = 'Viagem finalizada.';
+    notifyListeners();
+  }
+
+  /// Retorna somente a viagem demonstrativa ao estado inicial.
+  ///
+  /// O GPS e os embarques permanecem como o motorista os deixou. Em uma
+  /// integração real, uma nova viagem deverá ser fornecida pela fonte de dados.
+  void reiniciarDemonstracao() {
+    if (!podeReiniciarDemonstracao) return;
+    _situacao = SituacaoViagem.aguardando;
+    _etapaMapa = 0;
+    _ultimoAviso = null;
     notifyListeners();
   }
 }
