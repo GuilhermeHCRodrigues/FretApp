@@ -18,9 +18,28 @@ export const supabaseAdmin = createClient(
 export const APP_URL = (Deno.env.get("APP_URL") ?? "http://localhost:5000")
   .replace(/\/$/, "");
 
-// Preço "Mensalidade FretApp" (R$ 200,00/mês, modo de teste).
+// Preço inicial "Mensalidade FretApp" (R$ 200,00/mês, modo de teste).
+// Depois que o administrador altera o valor, vale o de configuracao_mensalidade.
 export const PRICE_ID = Deno.env.get("STRIPE_PRICE_ID") ??
   "price_1UaOMiD698ukJERUc9h2Fuo2";
+
+/** Preço vigente da mensalidade (definido pelo administrador ou o padrão). */
+export async function precoAtual(): Promise<string> {
+  const { data } = await supabaseAdmin
+    .from("configuracao_mensalidade")
+    .select("stripe_price_id")
+    .eq("id", true)
+    .maybeSingle();
+  return (data?.stripe_price_id as string | undefined) ?? PRICE_ID;
+}
+
+/**
+ * Teto do Pix Automático autorizado no banco do passageiro: 25% acima da
+ * mensalidade (folga para IOF), nunca abaixo de R$ 250,00.
+ */
+export function tetoPixCentavos(valorCentavos: number) {
+  return Math.max(25000, Math.ceil(valorCentavos * 1.25));
+}
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -148,7 +148,10 @@ void main() {
         final desktop = tamanho.width >= AppBreakpoints.desktop;
         if (desktop) {
           final trilho = find.byType(NavigationRail);
-          expect(tester.widget<NavigationRail>(trilho).destinations, hasLength(4));
+          expect(
+            tester.widget<NavigationRail>(trilho).destinations,
+            hasLength(5),
+          );
           expect(tester.getRect(trilho).left, 0);
           expect(find.text('ÁREA DO MOTORISTA'), findsOneWidget);
           expect(find.text('Sair da conta'), findsOneWidget);
@@ -225,9 +228,17 @@ void main() {
     expect(find.text('Localização não permitida'), findsOneWidget);
     expect(find.text('Iniciar viagem'), findsOneWidget);
     expect(tester.widget<FilledButton>(botaoPrincipal()).enabled, isTrue);
-    expect(tester.widget<OutlinedButton>(
-      find.ancestor(of: find.text('Finalizar viagem'), matching: find.byType(OutlinedButton)),
-    ).enabled, isFalse);
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.ancestor(
+              of: find.text('Finalizar viagem'),
+              matching: find.byType(OutlinedButton),
+            ),
+          )
+          .enabled,
+      isFalse,
+    );
   });
 
   testWidgets('fluxo completo e os botões voltam ao estado original', (
@@ -284,6 +295,25 @@ void main() {
     await tocar(tester, destino('Início'));
     expect(find.text('Viagem em andamento'), findsOneWidget);
   });
+
+  for (final tamanho in [celular, const Size(1366, 768)]) {
+    testWidgets('motorista abre o Financeiro do administrador em $tamanho', (
+      tester,
+    ) async {
+      await abrirTela(tester, tamanho);
+      expect(destino('Financeiro'), findsOneWidget);
+
+      await tocar(tester, destino('Financeiro'));
+      // Sem Supabase no teste, a tela mostra o erro de conexão: o que importa
+      // é que é a mesma tela do administrador e que nada estoura.
+      expect(find.text('Mensalidade no Stripe'), findsOneWidget);
+      expect(find.text('Status:'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tocar(tester, destino('Início'));
+      expect(find.text('Próxima viagem'), findsOneWidget);
+    });
+  }
 
   testWidgets('em tela estreita com fonte ampliada não estoura o layout', (
     tester,

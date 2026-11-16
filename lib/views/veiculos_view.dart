@@ -4,8 +4,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../viewmodels/veiculos_viewmodel.dart';
 
 class VeiculosView extends StatefulWidget {
-  final VoidCallback onVoltar;
-  const VeiculosView({super.key, required this.onVoltar});
+  /// Quando nulo (painel do administrador), a tela não mostra o próprio
+  /// título nem o botão voltar: a navegação fica a cargo da casca.
+  final VoidCallback? onVoltar;
+  const VeiculosView({super.key, this.onVoltar});
 
   @override
   State<VeiculosView> createState() => _VeiculosViewState();
@@ -507,15 +509,17 @@ class _VeiculosViewState extends State<VeiculosView> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              IconButton(
-                onPressed: widget.onVoltar,
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Voltar',
-              ),
-              const Text(
-                'Veículos',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
+              if (widget.onVoltar != null) ...[
+                IconButton(
+                  onPressed: widget.onVoltar,
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Voltar',
+                ),
+                const Text(
+                  'Veículos',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+              ],
               const Spacer(),
               FilledButton.icon(
                 onPressed: () => abrirFormulario(),

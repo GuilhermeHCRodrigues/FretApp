@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/acesso_servico.dart';
 import '../viewmodels/motoristas_viewmodel.dart';
+import 'widgets/acesso_app.dart';
 
 class MotoristasView extends StatefulWidget {
-  final VoidCallback onVoltar;
+  /// Quando nulo (painel do administrador), a tela não mostra o próprio
+  /// título nem o botão voltar: a navegação fica a cargo da casca.
+  final VoidCallback? onVoltar;
 
-  const MotoristasView({super.key, required this.onVoltar});
+  const MotoristasView({super.key, this.onVoltar});
 
   @override
   State<MotoristasView> createState() => _MotoristasViewState();
@@ -142,9 +146,14 @@ class _MotoristasViewState extends State<MotoristasView> {
     var cnhCategoria = valor('cnh_categoria');
     var ativo = motorista?['ativo'] as bool? ?? true;
     DateTime? validadeCnh = DateTime.tryParse(valor('cnh_validade'));
-    final validadeController = TextEditingController(
-      text: validadeCnh == null ? '' : formatarData(validadeCnh),
-    );
+    // Acesso ao app: só no cadastro novo. Cadastros antigos usam o botão
+    // "Criar acesso" do cartão.
+    var criarAcessoApp = novo;
+    // Valores, não controladores: CamposAcesso cuida dos próprios
+    // controladores (descartá-los aqui, com o diálogo ainda fechando,
+    // derrubava o app com "_dependents.isEmpty").
+    var acessoEmail = '';
+    var acessoSenha = '';
 
     final dados = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -221,26 +230,28 @@ class _MotoristasViewState extends State<MotoristasView> {
                           },
                           onChanged: (v) => telefone = v,
                         ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          initialValue: email,
-                          decoration: const InputDecoration(
-                            labelText: 'E-mail (opcional)',
-                            border: OutlineInputBorder(),
+                        if (!criarAcessoApp) ...[
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            initialValue: email,
+                            decoration: const InputDecoration(
+                              labelText: 'E-mail (opcional)',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (v) {
+                              final texto = (v ?? '').trim();
+                              if (texto.isEmpty) {
+                                return null;
+                              }
+                              return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                                      .hasMatch(texto)
+                                  ? null
+                                  : 'Informe um e-mail válido';
+                            },
+                            onChanged: (v) => email = v,
                           ),
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (v) {
-                            final texto = (v ?? '').trim();
-                            if (texto.isEmpty) {
-                              return null;
-                            }
-                            return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                                    .hasMatch(texto)
-                                ? null
-                                : 'Informe um e-mail válido';
-                          },
-                          onChanged: (v) => email = v,
-                        ),
+                        ],
                         const SizedBox(height: 20),
                         const Text(
                           'Carteira Nacional de Habilitação (CNH)',
@@ -293,7 +304,12 @@ class _MotoristasViewState extends State<MotoristasView> {
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          controller: validadeController,
+                          // Sem controlador: a chave recria o campo com a
+                          // data escolhida.
+                          key: ValueKey(validadeCnh),
+                          initialValue: validadeCnh == null
+                              ? ''
+                              : formatarData(validadeCnh!),
                           readOnly: true,
                           decoration: const InputDecoration(
                             labelText: 'Validade da CNH',
@@ -315,12 +331,7 @@ class _MotoristasViewState extends State<MotoristasView> {
                               ),
                             );
                             if (escolhida != null) {
-                              setDialogState(() {
-                                validadeCnh = escolhida;
-                                validadeController.text = formatarData(
-                                  escolhida,
-                                );
-                              });
+                              setDialogState(() => validadeCnh = escolhida);
                             }
                           },
                         ),
@@ -340,6 +351,38 @@ class _MotoristasViewState extends State<MotoristasView> {
                           ],
                           onChanged: (v) => ativo = v ?? true,
                         ),
+                        if (novo) ...[
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Acesso ao app',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: criarAcessoApp,
+                            onChanged: (v) =>
+                                setDialogState(() => criarAcessoApp = v),
+                            title: const Text('Criar login do motorista'),
+                            subtitle: const Text(
+                              'Ao entrar com este e-mail, abre direto a '
+                              'tela de motorista.',
+                            ),
+                          ),
+                          if (criarAcessoApp) ...[
+                            const SizedBox(height: 8),
+                            CamposAcesso(
+                              emailInicial: acessoEmail,
+                              senhaInicial: acessoSenha,
+                              aoMudar: (email, senha) {
+                                acessoEmail = email;
+                                acessoSenha = senha;
+                              },
+                            ),
+                          ],
+                        ],
                       ],
                     ),
                   ),
@@ -361,7 +404,9 @@ class _MotoristasViewState extends State<MotoristasView> {
                     'nome': nome.trim(),
                     'cpf': cpf.replaceAll(RegExp(r'\D'), ''),
                     'telefone': telefone.replaceAll(RegExp(r'\D'), ''),
-                    'email': email.trim().isEmpty ? null : email.trim(),
+                    'email': criarAcessoApp
+                        ? acessoEmail.trim().toLowerCase()
+                        : (email.trim().isEmpty ? null : email.trim()),
                     'cnh_numero': cnhNumero.replaceAll(RegExp(r'\D'), ''),
                     'cnh_categoria': cnhCategoria,
                     'cnh_validade': dataIso(validadeCnh!),
@@ -376,17 +421,29 @@ class _MotoristasViewState extends State<MotoristasView> {
       ),
     );
 
-    validadeController.dispose();
+    acessoEmail = acessoEmail.trim().toLowerCase();
 
     if (dados == null || !mounted) {
       return;
     }
 
+    final String id;
     try {
-      await vm.salvar(id: motorista?['id'] as String?, dados: dados);
+      id = await vm.salvar(id: motorista?['id'] as String?, dados: dados);
+    } catch (erro) {
       if (!mounted) {
         return;
       }
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(mensagemErro(erro))));
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!criarAcessoApp) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -396,12 +453,52 @@ class _MotoristasViewState extends State<MotoristasView> {
           ),
         ),
       );
-    } catch (erro) {
+      return;
+    }
+
+    try {
+      await criarAcesso(
+        tipo: TipoAcesso.motorista,
+        cadastroId: id,
+        email: acessoEmail,
+        senha: acessoSenha,
+      );
+      await vm.carregar();
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(mensagemErro(erro))));
+      await mostrarCredenciaisCriadas(
+        context,
+        tipo: TipoAcesso.motorista,
+        email: acessoEmail,
+        senha: acessoSenha,
+      );
+    } on AcessoException catch (erro) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text(
+            'Motorista cadastrado, mas o login não foi criado: '
+            '${erro.mensagem} Use "Criar acesso" no cartão dele.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> abrirCriarAcesso(Map<String, dynamic> motorista) async {
+    final criado = await mostrarDialogoCriarAcesso(
+      context,
+      tipo: TipoAcesso.motorista,
+      cadastroId: motorista['id'] as String,
+      nome: motorista['nome']?.toString() ?? 'O motorista',
+      emailInicial: motorista['email']?.toString(),
+    );
+    if (criado) {
+      await vm.carregar();
     }
   }
 
@@ -456,15 +553,17 @@ class _MotoristasViewState extends State<MotoristasView> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              IconButton(
-                onPressed: widget.onVoltar,
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Voltar',
-              ),
-              const Text(
-                'Motoristas',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
+              if (widget.onVoltar != null) ...[
+                IconButton(
+                  onPressed: widget.onVoltar,
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Voltar',
+                ),
+                const Text(
+                  'Motoristas',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+              ],
               const Spacer(),
               FilledButton.icon(
                 onPressed: () => abrirFormulario(),
@@ -540,6 +639,7 @@ class _MotoristasViewState extends State<MotoristasView> {
                   .isBefore(DateUtils.dateOnly(DateTime.now()));
           final ativo = motorista['ativo'] as bool? ?? true;
           final telefone = motorista['telefone']?.toString() ?? '';
+          final temAcesso = motorista['perfil_id'] != null;
 
           return Card(
             child: ListTile(
@@ -582,6 +682,7 @@ class _MotoristasViewState extends State<MotoristasView> {
                             label: Text('CNH vencida'),
                             visualDensity: VisualDensity.compact,
                           ),
+                        SeloAcesso(temAcesso: temAcesso),
                       ],
                     ),
                   ],
@@ -591,6 +692,12 @@ class _MotoristasViewState extends State<MotoristasView> {
               trailing: Wrap(
                 spacing: 0,
                 children: [
+                  if (!temAcesso)
+                    IconButton(
+                      tooltip: 'Criar acesso ao app',
+                      onPressed: () => abrirCriarAcesso(motorista),
+                      icon: const Icon(Icons.person_add_alt_1_outlined),
+                    ),
                   IconButton(
                     tooltip: 'Editar motorista',
                     onPressed: () => abrirFormulario(motorista),

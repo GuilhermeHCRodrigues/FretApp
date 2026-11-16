@@ -2,283 +2,309 @@ import 'package:flutter/material.dart';
 
 import 'financeiro_view.dart';
 import 'mensagens_view.dart';
-
-import 'veiculos_view.dart';
 import 'motoristas_view.dart';
 import 'passageiros_view.dart';
 import 'rotas_view.dart';
+import 'veiculos_view.dart';
 import 'viagens_view.dart';
+import 'widgets/comum/cartao_app.dart';
+import 'widgets/comum/casca_responsiva.dart';
 
+/// Índices das abas do painel (ordem de [_destinos]).
+abstract final class _Aba {
+  static const visaoGeral = 0;
+  static const veiculos = 1;
+  static const motoristas = 2;
+  static const passageiros = 3;
+  static const rotas = 4;
+  static const viagens = 5;
+  static const financeiro = 6;
+  static const mensagens = 7;
+}
+
+const _destinos = [
+  DestinoCasca(
+    icone: Icons.dashboard_outlined,
+    iconeSelecionado: Icons.dashboard_rounded,
+    rotulo: 'Visão geral',
+  ),
+  DestinoCasca(
+    icone: Icons.directions_bus_outlined,
+    iconeSelecionado: Icons.directions_bus_rounded,
+    rotulo: 'Veículos',
+  ),
+  DestinoCasca(
+    icone: Icons.badge_outlined,
+    iconeSelecionado: Icons.badge_rounded,
+    rotulo: 'Motoristas',
+  ),
+  DestinoCasca(
+    icone: Icons.groups_outlined,
+    iconeSelecionado: Icons.groups_rounded,
+    rotulo: 'Passageiros',
+  ),
+  DestinoCasca(
+    icone: Icons.route_outlined,
+    iconeSelecionado: Icons.route_rounded,
+    rotulo: 'Rotas',
+  ),
+  DestinoCasca(
+    icone: Icons.location_on_outlined,
+    iconeSelecionado: Icons.location_on_rounded,
+    rotulo: 'Viagens',
+  ),
+  DestinoCasca(
+    icone: Icons.account_balance_wallet_outlined,
+    iconeSelecionado: Icons.account_balance_wallet_rounded,
+    rotulo: 'Financeiro',
+  ),
+  DestinoCasca(
+    icone: Icons.campaign_outlined,
+    iconeSelecionado: Icons.campaign_rounded,
+    rotulo: 'Mensagens',
+  ),
+];
+
+/// Painel do administrador, com a mesma casca do motorista e do passageiro.
 class AdminDashboardView extends StatefulWidget {
-  const AdminDashboardView({super.key});
+  const AdminDashboardView({super.key, this.onSair});
+
+  final Future<void> Function()? onSair;
 
   @override
   State<AdminDashboardView> createState() => _AdminDashboardViewState();
 }
 
 class _AdminDashboardViewState extends State<AdminDashboardView> {
-  int paginaSelecionada = 0;
+  int _aba = _Aba.visaoGeral;
+
+  void _selecionar(int indice) => setState(() => _aba = indice);
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final menuExpandido = constraints.maxWidth >= 850;
-
-        return Row(
-          children: [
-            NavigationRail(
-              extended: menuExpandido,
-              minWidth: 72,
-              minExtendedWidth: 220,
-              labelType: menuExpandido
-                  ? null
-                  : NavigationRailLabelType.selected,
-
-              selectedIndex: paginaSelecionada,
-
-              onDestinationSelected: (index) {
-                setState(() {
-                  paginaSelecionada = index;
-                });
-              },
-
-              leading: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.directions_bus, size: 32),
-                    if (menuExpandido) ...[
-                      const SizedBox(height: 8),
-                      const Text(
-                        'FretApp',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Text(
-                        'ADMINISTRAÇÃO',
-                        style: TextStyle(fontSize: 10),
-                      ),
-                    ],
-                  ],
-                ),
+    final cores = Theme.of(context).colorScheme;
+    return CascaResponsiva(
+      destinos: _destinos,
+      indiceSelecionado: _aba,
+      aoSelecionar: _selecionar,
+      subtitulo: 'Administração',
+      rodapeLateral: widget.onSair == null
+          ? null
+          : ListTile(
+              leading: CircleAvatar(
+                backgroundColor: cores.primaryContainer,
+                child: Icon(Icons.admin_panel_settings, color: cores.primary),
               ),
-
-              destinations: const [
-                NavigationRailDestination(
-                  icon: Icon(Icons.dashboard_outlined),
-                  selectedIcon: Icon(Icons.dashboard),
-                  label: Text('Visão geral'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.directions_bus_outlined),
-                  selectedIcon: Icon(Icons.directions_bus),
-                  label: Text('Veículos'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.people_outline),
-                  selectedIcon: Icon(Icons.people),
-                  label: Text('Motoristas'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.person_outline),
-                  selectedIcon: Icon(Icons.person),
-                  label: Text('Passageiros'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.route_outlined),
-                  selectedIcon: Icon(Icons.route),
-                  label: Text('Rotas'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.location_on_outlined),
-                  selectedIcon: Icon(Icons.location_on),
-                  label: Text('Viagens'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.account_balance_wallet_outlined),
-                  selectedIcon: Icon(Icons.account_balance_wallet),
-                  label: Text('Financeiro'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.message_outlined),
-                  selectedIcon: Icon(Icons.message),
-                  label: Text('Mensagens'),
-                ),
-              ],
+              title: const Text('Administrador'),
+              subtitle: const Text('Sair da conta'),
+              trailing: const Icon(Icons.logout, size: 20),
+              onTap: widget.onSair,
             ),
-
-            const VerticalDivider(width: 1, thickness: 1),
-
-            Expanded(child: construirConteudo()),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget construirConteudo() {
-    switch (paginaSelecionada) {
-      case 0:
-        return construirVisaoGeral();
-
-      case 1:
-        return VeiculosView(
-          onVoltar: () {
-            setState(() {
-              paginaSelecionada = 0;
-            });
-          },
-        );
-
-      case 2:
-        return MotoristasView(
-          onVoltar: () {
-            setState(() {
-              paginaSelecionada = 0;
-            });
-          },
-        );
-
-      case 3:
-        return PassageirosView(
-          onVoltar: () {
-            setState(() {
-              paginaSelecionada = 0;
-            });
-          },
-        );
-
-      case 4:
-        return RotasView(
-          onVoltar: () {
-            setState(() {
-              paginaSelecionada = 0;
-            });
-          },
-        );
-
-      case 5:
-        return ViagensView(
-          onVoltar: () {
-            setState(() {
-              paginaSelecionada = 0;
-            });
-          },
-        );
-
-      case 6:
-        return FinanceiroView(
-          onVoltar: () {
-            setState(() {
-              paginaSelecionada = 0;
-            });
-          },
-        );
-
-      case 7:
-        return MensagensView(
-          onVoltar: () {
-            setState(() {
-              paginaSelecionada = 0;
-            });
-          },
-        );
-
-      default:
-        return construirVisaoGeral();
-    }
-  }
-
-  Widget construirVisaoGeral() {
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        Text('Visão geral', style: Theme.of(context).textTheme.headlineMedium),
-
-        const SizedBox(height: 8),
-
-        const Text('Bem-vindo ao painel administrativo do FretApp.'),
-
-        const SizedBox(height: 24),
-
-        const Card(
-          child: ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('Painel administrativo'),
-            subtitle: Text(
-              'Utilize o menu lateral para gerenciar '
-              'os recursos do aplicativo.',
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 24),
-
-        Text('Acesso rápido', style: Theme.of(context).textTheme.titleLarge),
-
-        const SizedBox(height: 12),
-
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            atalho('Veículos', 'Gerenciar frota', Icons.directions_bus, 1),
-            atalho('Motoristas', 'Gerenciar motoristas', Icons.people, 2),
-            atalho('Passageiros', 'Gerenciar passageiros', Icons.person, 3),
-            atalho(
-              'Financeiro',
-              'Consultar pagamentos',
-              Icons.account_balance_wallet,
-              6,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget atalho(String titulo, String descricao, IconData icone, int indice) {
-    return SizedBox(
-      width: 230,
-      child: Card(
-        child: ListTile(
-          leading: Icon(icone),
-          title: Text(titulo),
-          subtitle: Text(descricao),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: () {
-            setState(() {
-              paginaSelecionada = indice;
-            });
-          },
-        ),
+      corpo: (context, desktop) => KeyedSubtree(
+        // Cada aba recria o próprio estado ao ser aberta.
+        key: ValueKey(_aba),
+        child: _conteudo(desktop),
       ),
     );
   }
 
-  Widget paginaEmConstrucao(String titulo, IconData icone, String descricao) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icone, size: 56),
-            const SizedBox(height: 16),
-            Text(titulo, style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 8),
-            Text(descricao, textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            const Text(
-              'Esta seção será implementada nas próximas etapas.',
-              textAlign: TextAlign.center,
-            ),
-          ],
+  Widget _conteudo(bool desktop) => switch (_aba) {
+    _Aba.veiculos => const VeiculosView(),
+    _Aba.motoristas => const MotoristasView(),
+    _Aba.passageiros => const PassageirosView(),
+    _Aba.rotas => const RotasView(),
+    _Aba.viagens => const ViagensView(),
+    _Aba.financeiro => const FinanceiroView(),
+    _Aba.mensagens => const MensagensView(),
+    _ => _VisaoGeral(desktop: desktop, abrir: _selecionar),
+  };
+}
+
+class _Atalho {
+  const _Atalho(this.aba, this.titulo, this.descricao, this.icone);
+
+  final int aba;
+  final String titulo;
+  final String descricao;
+  final IconData icone;
+}
+
+const _atalhos = [
+  _Atalho(
+    _Aba.motoristas,
+    'Motoristas',
+    'Cadastrar motoristas e criar o acesso ao app',
+    Icons.badge_rounded,
+  ),
+  _Atalho(
+    _Aba.passageiros,
+    'Passageiros',
+    'Cadastrar passageiros e criar o acesso ao app',
+    Icons.groups_rounded,
+  ),
+  _Atalho(
+    _Aba.veiculos,
+    'Veículos',
+    'Gerenciar a frota',
+    Icons.directions_bus_rounded,
+  ),
+  _Atalho(
+    _Aba.rotas,
+    'Rotas',
+    'Trajetos e pontos de parada',
+    Icons.route_rounded,
+  ),
+  _Atalho(
+    _Aba.viagens,
+    'Viagens',
+    'Agendar e acompanhar viagens',
+    Icons.location_on_rounded,
+  ),
+  _Atalho(
+    _Aba.financeiro,
+    'Financeiro',
+    'Mensalidades e pagamentos',
+    Icons.account_balance_wallet_rounded,
+  ),
+  _Atalho(
+    _Aba.mensagens,
+    'Mensagens',
+    'Comunicados para motoristas e passageiros',
+    Icons.campaign_rounded,
+  ),
+];
+
+class _VisaoGeral extends StatelessWidget {
+  const _VisaoGeral({required this.desktop, required this.abrir});
+
+  final bool desktop;
+  final ValueChanged<int> abrir;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final cores = tema.colorScheme;
+
+    return ListView(
+      padding: desktop
+          ? const EdgeInsets.all(24)
+          : const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      children: [
+        CartaoApp(
+          cor: cores.primaryContainer,
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Icon(Icons.admin_panel_settings, size: 40, color: cores.primary),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bem-vindo ao painel do FretApp',
+                      style: tema.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: cores.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Cadastre motoristas e passageiros e crie o login '
+                      'deles. Ao entrar, cada um vê a tela do seu perfil.',
+                      style: tema.textTheme.bodyMedium?.copyWith(
+                        color: cores.onPrimaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
+        const SizedBox(height: 24),
+        Semantics(
+          header: true,
+          child: Text(
+            'Acesso rápido',
+            style: tema.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, limites) {
+            final colunas = switch (limites.maxWidth) {
+              < 560 => 1,
+              < 960 => 2,
+              _ => 3,
+            };
+            const espaco = 12.0;
+            final largura =
+                (limites.maxWidth - espaco * (colunas - 1)) / colunas;
+            return Wrap(
+              spacing: espaco,
+              runSpacing: espaco,
+              children: [
+                for (final atalho in _atalhos)
+                  SizedBox(
+                    width: largura,
+                    child: _CartaoAtalho(
+                      atalho: atalho,
+                      aoTocar: () => abrir(atalho.aba),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _CartaoAtalho extends StatelessWidget {
+  const _CartaoAtalho({required this.atalho, required this.aoTocar});
+
+  final _Atalho atalho;
+  final VoidCallback aoTocar;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final cores = tema.colorScheme;
+    return CartaoApp(
+      onTap: aoTocar,
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: cores.primaryContainer,
+            child: Icon(atalho.icone, color: cores.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  atalho.titulo,
+                  style: tema.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  atalho.descricao,
+                  style: tema.textTheme.bodySmall?.copyWith(
+                    color: cores.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: cores.onSurfaceVariant),
+        ],
       ),
     );
   }

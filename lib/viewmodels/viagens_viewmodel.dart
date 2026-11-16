@@ -41,22 +41,24 @@ class ViagensViewModel extends ChangeNotifier {
             .from('rotas')
             .select('id, nome, origem, destino, horario_saida')
             .eq('ativo', true)
-            .order('nome'),
+            .order('nome', ascending: true),
         supabase
             .from('perfis')
             .select('id, nome:nome_completo')
             .eq('tipo', 'motorista')
-            .order('nome:nome_completo'),
+            // Ordena pela coluna real; "nome:nome_completo" é só o apelido
+            // no select e, no order, fazia a consulta inteira falhar (400).
+            .order('nome_completo', ascending: true),
         supabase
             .from('veiculos')
             .select('id, placa, modelo, capacidade')
             .eq('ativo', true)
-            .order('placa'),
+            .order('placa', ascending: true),
         supabase
             .from('passageiros')
             .select('id, nome')
             .eq('ativo', true)
-            .order('nome'),
+            .order('nome', ascending: true),
       ]);
 
       viagens = List<Map<String, dynamic>>.from(resultados[0]);

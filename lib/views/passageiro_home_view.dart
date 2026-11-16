@@ -10,6 +10,7 @@ import 'acompanhar_onibus_view.dart';
 import 'mensagens_inbox_view.dart';
 import 'widgets/comum/chip_status.dart';
 import 'widgets/comum/estados.dart';
+import 'widgets/comum/descartar_ao_fechar.dart';
 
 class PassageiroHomeView extends StatefulWidget {
   const PassageiroHomeView({super.key});
@@ -67,8 +68,12 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
 
   // FINANCEIRO (Stripe, sincronizado pelo webhook)
 
-  // Valor do plano no Stripe (price da "Mensalidade FretApp").
-  static const valorPlanoCentavos = 20000;
+  // Valor padrão do plano no Stripe (price da "Mensalidade FretApp"), usado
+  // enquanto o administrador não definir outro em configuracao_mensalidade.
+  static const valorPlanoPadraoCentavos = 20000;
+  int? valorConfiguradoCentavos;
+  int get valorPlanoCentavos =>
+      valorConfiguradoCentavos ?? valorPlanoPadraoCentavos;
 
   bool carregandoFinanceiro = true;
   String? erroFinanceiro;
@@ -120,11 +125,11 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
   String? get statusAssinatura => assinatura?['status'] as String?;
 
   bool get assinaturaEmVigor => const [
-        'active',
-        'trialing',
-        'past_due',
-        'unpaid',
-      ].contains(statusAssinatura);
+    'active',
+    'trialing',
+    'past_due',
+    'unpaid',
+  ].contains(statusAssinatura);
 
   Future<void> carregarFinanceiro({bool silencioso = false}) async {
     final user = usuario;
@@ -154,8 +159,20 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
           .order('competencia', ascending: false)
           .limit(12);
 
+      // Valor atual definido pelo administrador (tabela pode não existir
+      // ainda: nesse caso fica o valor padrão).
+      int? valorConfigurado;
+      try {
+        final config = await supabase
+            .from('configuracao_mensalidade')
+            .select('valor_centavos')
+            .maybeSingle();
+        valorConfigurado = (config?['valor_centavos'] as num?)?.toInt();
+      } catch (_) {}
+
       if (!mounted) return;
       setState(() {
+        valorConfiguradoCentavos = valorConfigurado;
         assinatura = dadosAssinatura;
         mensalidades = List<Map<String, dynamic>>.from(dadosMensalidades);
         carregandoFinanceiro = false;
@@ -181,10 +198,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
       final url = (resposta.data as Map?)?['url'] as String?;
       if (url == null) throw Exception('Resposta sem URL');
 
-      final abriu = await launchUrl(
-        Uri.parse(url),
-        webOnlyWindowName: '_self',
-      );
+      final abriu = await launchUrl(Uri.parse(url), webOnlyWindowName: '_self');
       if (!abriu) throw Exception('Não abriu a URL');
     } on FunctionException catch (e) {
       debugPrint('Erro em $funcao: ${e.status} ${e.details}');
@@ -205,9 +219,9 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
   String formatarValor(int? centavos) {
     if (centavos == null) return '—';
     final reais = (centavos ~/ 100).toString().replaceAllMapped(
-          RegExp(r'\B(?=(\d{3})+(?!\d))'),
-          (_) => '.',
-        );
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => '.',
+    );
     final resto = (centavos % 100).toString().padLeft(2, '0');
     return 'R\$ $reais,$resto';
   }
@@ -257,8 +271,18 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
   }
 
   static const nomesMeses = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro',
   ];
 
   /// '2026-11-01' -> 'Novembro/2026' (coluna date, sem fuso).
@@ -275,7 +299,6 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
     if (valor is! String || valor.length < 10) return '—';
     return '${valor.substring(8, 10)}/${valor.substring(5, 7)}/${valor.substring(0, 4)}';
   }
-
 
   @override
   void dispose() {
@@ -453,16 +476,13 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
     setState(() => salvandoPresenca = true);
 
     try {
-      await supabase.from('confirmacoes_presenca').upsert(
-        {
-          'passageiro_id': user.id,
-          'data': hoje,
-          'trajeto': trajeto,
-          'vai_comparecer': trajeto != 'nao_vai',
-          'atualizado_em': DateTime.now().toUtc().toIso8601String(),
-        },
-        onConflict: 'passageiro_id,data',
-      );
+      await supabase.from('confirmacoes_presenca').upsert({
+        'passageiro_id': user.id,
+        'data': hoje,
+        'trajeto': trajeto,
+        'vai_comparecer': trajeto != 'nao_vai',
+        'atualizado_em': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'passageiro_id,data');
 
       if (!mounted) return;
       setState(() {
@@ -478,11 +498,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
     }
   }
 
-  final paginas = const [
-    'Início',
-    'Financeiro',
-    'Meu perfil',
-  ];
+  final paginas = const ['Início', 'Financeiro', 'Meu perfil'];
 
   void navegar(int index) {
     setState(() => paginaSelecionada = index);
@@ -493,9 +509,8 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
   }
 
   void aviso(String mensagem) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensagem)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(mensagem)));
   }
 
   /// Abre o diálogo, valida, grava no Supabase e só então atualiza a tela.
@@ -518,76 +533,79 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
     final salvou = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) {
-          Future<void> confirmar() async {
-            final valor = controller.text.trim();
-            final mensagemErro = validar(valor);
+      builder: (dialogContext) => DescartarAoFechar(
+        // Descartados só quando o diálogo some (ver widget).
+        controladores: [controller],
+        child: StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            Future<void> confirmar() async {
+              final valor = controller.text.trim();
+              final mensagemErro = validar(valor);
 
-            if (mensagemErro != null) {
-              setDialogState(() => erro = mensagemErro);
-              return;
-            }
-
-            setDialogState(() {
-              erro = null;
-              salvando = true;
-            });
-
-            try {
-              final valorGravado = await salvarCampoPerfil(coluna, valor);
-              aoSalvar(valorGravado);
-              if (dialogContext.mounted) {
-                Navigator.pop(dialogContext, true);
+              if (mensagemErro != null) {
+                setDialogState(() => erro = mensagemErro);
+                return;
               }
-            } catch (e) {
-              debugPrint('Erro ao salvar $coluna: $e');
-              setDialogState(() {
-                salvando = false;
-                erro = 'Não foi possível salvar. Tente novamente.';
-              });
-            }
-          }
 
-          return AlertDialog(
-            title: Text('Editar $titulo'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              enabled: !salvando,
-              onSubmitted: (_) => salvando ? null : confirmar(),
-              decoration: InputDecoration(
-                labelText: titulo,
-                errorText: erro,
-                border: const OutlineInputBorder(),
+              setDialogState(() {
+                erro = null;
+                salvando = true;
+              });
+
+              try {
+                final valorGravado = await salvarCampoPerfil(coluna, valor);
+                aoSalvar(valorGravado);
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext, true);
+                }
+              } catch (e) {
+                debugPrint('Erro ao salvar $coluna: $e');
+                setDialogState(() {
+                  salvando = false;
+                  erro = 'Não foi possível salvar. Tente novamente.';
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: Text('Editar $titulo'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                enabled: !salvando,
+                onSubmitted: (_) => salvando ? null : confirmar(),
+                decoration: InputDecoration(
+                  labelText: titulo,
+                  errorText: erro,
+                  border: const OutlineInputBorder(),
+                ),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed:
-                    salvando ? null : () => Navigator.pop(dialogContext),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton(
-                onPressed: salvando ? null : confirmar,
-                child: salvando
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Salvar'),
-              ),
-            ],
-          );
-        },
+              actions: [
+                TextButton(
+                  onPressed: salvando
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: salvando ? null : confirmar,
+                  child: salvando
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Salvar'),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
-
-    controller.dispose();
 
     if (salvou == true) {
       aviso('Alteração salva com sucesso.');
@@ -630,7 +648,9 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
                   actions: [
                     IconButton(
                       onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const MensagensInboxView()),
+                        MaterialPageRoute(
+                          builder: (_) => const MensagensInboxView(),
+                        ),
                       ),
                       icon: const Icon(Icons.notifications_none),
                     ),
@@ -698,11 +718,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
         children: [
           const SizedBox(height: 28),
 
-          const Icon(
-            Icons.directions_bus_filled,
-            size: 38,
-            color: azulEscuro,
-          ),
+          const Icon(Icons.directions_bus_filled, size: 38, color: azulEscuro),
 
           const SizedBox(height: 8),
 
@@ -728,8 +744,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
           const Divider(height: 1),
           const SizedBox(height: 18),
 
-          for (int i = 0; i < paginas.length; i++)
-            construirItemMenu(i),
+          for (int i = 0; i < paginas.length; i++) construirItemMenu(i),
 
           const Spacer(),
           const Divider(height: 1),
@@ -744,10 +759,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
               'Passageiro',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            subtitle: const Text(
-              'Minha conta',
-              style: TextStyle(fontSize: 12),
-            ),
+            subtitle: const Text('Minha conta', style: TextStyle(fontSize: 12)),
             trailing: const Icon(Icons.logout, size: 19),
             onTap: sair,
           ),
@@ -774,28 +786,20 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
     final selecionado = paginaSelecionada == index;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: ListTile(
         selected: selecionado,
         selectedTileColor: const Color(0xFFDBEAFE),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         leading: Icon(
-          selecionado
-              ? iconesSelecionados[index]
-              : icones[index],
+          selecionado ? iconesSelecionados[index] : icones[index],
           color: selecionado ? azul : Colors.blueGrey,
         ),
         title: Text(
           paginas[index],
           style: TextStyle(
             color: selecionado ? azulEscuro : Colors.blueGrey,
-            fontWeight:
-                selecionado ? FontWeight.bold : FontWeight.normal,
+            fontWeight: selecionado ? FontWeight.bold : FontWeight.normal,
           ),
         ),
         onTap: () => navegar(index),
@@ -811,9 +815,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
       padding: const EdgeInsets.symmetric(horizontal: 28),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE2E8F0)),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
       ),
       child: Row(
         children: [
@@ -828,10 +830,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
           const Spacer(),
           IconButton(
             onPressed: () => aviso('Notificações em breve.'),
-            icon: const Icon(
-              Icons.notifications_none,
-              color: azulEscuro,
-            ),
+            icon: const Icon(Icons.notifications_none, color: azulEscuro),
           ),
         ],
       ),
@@ -993,7 +992,11 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
 
           Row(
             children: [
-              const Icon(Icons.people_outline, size: 18, color: Colors.blueGrey),
+              const Icon(
+                Icons.people_outline,
+                size: 18,
+                color: Colors.blueGrey,
+              ),
               const SizedBox(width: 6),
               Text(
                 total == 1 ? '1 resposta hoje' : '$total respostas hoje',
@@ -1012,7 +1015,10 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
               else if (meuTrajeto == null)
                 const Text(
                   'Você ainda não respondeu',
-                  style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.orange,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
             ],
           ),
@@ -1066,8 +1072,9 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
                       rotulo,
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight:
-                            selecionada ? FontWeight.bold : FontWeight.w600,
+                        fontWeight: selecionada
+                            ? FontWeight.bold
+                            : FontWeight.w600,
                         color: azulEscuro,
                       ),
                     ),
@@ -1093,13 +1100,13 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
                     curve: Curves.easeOut,
                     builder: (context, valorBarra, _) =>
                         LinearProgressIndicator(
-                      value: valorBarra,
-                      minHeight: 8,
-                      backgroundColor: const Color(0xFFEFF3F8),
-                      valueColor: AlwaysStoppedAnimation(
-                        selecionada ? cor : cor.withValues(alpha: 0.55),
-                      ),
-                    ),
+                          value: valorBarra,
+                          minHeight: 8,
+                          backgroundColor: const Color(0xFFEFF3F8),
+                          valueColor: AlwaysStoppedAnimation(
+                            selecionada ? cor : cor.withValues(alpha: 0.55),
+                          ),
+                        ),
                   ),
                 ),
               ),
@@ -1198,19 +1205,11 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
 
           const SizedBox(height: 20),
 
-          linhaLocal(
-            Icons.location_on,
-            Colors.red,
-            'Destino',
-            viagem.destino,
-          ),
+          linhaLocal(Icons.location_on, Colors.red, 'Destino', viagem.destino),
 
           const SizedBox(height: 24),
 
-          MapaOnibusAoVivo(
-            trajeto: viagem.trajeto,
-            pontos: viagem.pontos,
-          ),
+          MapaOnibusAoVivo(trajeto: viagem.trajeto, pontos: viagem.pontos),
         ],
       ),
     );
@@ -1240,10 +1239,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
                     ),
                     Text(
                       'Comunicado recente',
-                      style: TextStyle(
-                        color: Colors.blueGrey,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.blueGrey, fontSize: 12),
                     ),
                   ],
                 ),
@@ -1255,10 +1251,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
 
           const Text(
             'Bem-vindo ao FretApp!',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
 
           const SizedBox(height: 8),
@@ -1267,10 +1260,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
             'Aqui você receberá avisos sobre horários, '
             'alterações de rotas e informações importantes '
             'enviadas pela administração.',
-            style: TextStyle(
-              color: Colors.blueGrey,
-              height: 1.5,
-            ),
+            style: TextStyle(color: Colors.blueGrey, height: 1.5),
           ),
         ],
       ),
@@ -1382,7 +1372,9 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.calendar_month, color: azul),
                   title: Text(
-                    cancelaNoFim ? 'Assinatura termina em' : 'Próximo vencimento',
+                    cancelaNoFim
+                        ? 'Assinatura termina em'
+                        : 'Próximo vencimento',
                   ),
                   subtitle: Text(
                     assinaturaEmVigor
@@ -1556,11 +1548,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
               const CircleAvatar(
                 radius: 42,
                 backgroundColor: Color(0xFFDBEAFE),
-                child: Icon(
-                  Icons.person,
-                  size: 46,
-                  color: azul,
-                ),
+                child: Icon(Icons.person, size: 46, color: azul),
               ),
               const SizedBox(height: 14),
               Text(
@@ -1655,7 +1643,6 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
             ],
           ),
         ),
-
       ],
     );
   }
@@ -1675,10 +1662,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
           ),
         ),
         const SizedBox(height: 7),
-        Text(
-          descricao,
-          style: const TextStyle(color: Colors.blueGrey),
-        ),
+        Text(descricao, style: const TextStyle(color: Colors.blueGrey)),
       ],
     );
   }
@@ -1696,21 +1680,14 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
 
   Widget etiqueta(String texto, Color cor) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 7,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         color: cor.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         texto,
-        style: TextStyle(
-          color: cor,
-          fontWeight: FontWeight.bold,
-          fontSize: 11,
-        ),
+        style: TextStyle(color: cor, fontWeight: FontWeight.bold, fontSize: 11),
       ),
     );
   }
@@ -1731,10 +1708,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
             children: [
               Text(
                 titulo,
-                style: const TextStyle(
-                  color: Colors.blueGrey,
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Colors.blueGrey, fontSize: 12),
               ),
               Text(
                 descricao,
@@ -1754,9 +1728,7 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
     return BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(
-        color: const Color(0xFFE2E8F0),
-      ),
+      border: Border.all(color: const Color(0xFFE2E8F0)),
     );
   }
 }

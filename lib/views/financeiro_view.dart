@@ -1,525 +1,821 @@
 import 'package:flutter/material.dart';
 
+import '../models/situacao_financeira.dart';
+import '../services/mensalidade_servico.dart';
+import '../tema/cores_status.dart';
 import '../viewmodels/financeiro_viewmodel.dart';
+import 'widgets/comum/cartao_app.dart';
+import 'widgets/comum/chip_status.dart';
+import 'widgets/comum/estados.dart';
 
+/// Financeiro do administrador: tabela com todos os passageiros e o status
+/// de pagamento da mensalidade do mês, com filtro "pagaram / não pagaram".
 class FinanceiroView extends StatefulWidget {
-  const FinanceiroView({super.key, required this.onVoltar});
-  final VoidCallback onVoltar;
+  const FinanceiroView({super.key, this.onVoltar, this.modelo});
+
+  /// Quando nulo (painel do administrador), a tela não mostra o próprio
+  /// título nem o botão voltar: a navegação fica a cargo da casca.
+  final VoidCallback? onVoltar;
+
+  /// Permite que um teste forneça o modelo (sem Supabase).
+  final FinanceiroViewModel? modelo;
 
   @override
   State<FinanceiroView> createState() => _FinanceiroViewState();
 }
 
 class _FinanceiroViewState extends State<FinanceiroView> {
-  final vm = FinanceiroViewModel();
-  DateTime competencia = DateTime(DateTime.now().year, DateTime.now().month);
-  String filtro = 'todas';
+  FinanceiroViewModel? _proprio;
+  FinanceiroViewModel get vm =>
+      widget.modelo ?? (_proprio ??= FinanceiroViewModel());
+
+  final _busca = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    vm.carregar(competencia: competencia);
+    _busca.text = vm.busca;
+    vm.carregar();
+    vm.carregarValor();
   }
 
   @override
   void dispose() {
-    vm.dispose();
+    _proprio?.dispose();
+    _busca.dispose();
     super.dispose();
   }
 
-  String moeda(double valor) =>
-      'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}';
-  String mesLabel(DateTime data) =>
-      '${data.month.toString().padLeft(2, '0')}/${data.year}';
-  String dataLabel(String data) {
-    final d = DateTime.parse(data);
-    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-  }
-
-  Future<void> gerarMensalidades() async {
-    final valorController = TextEditingController();
-    final descricaoController = TextEditingController(
-      text: 'Mensalidade de transporte',
-    );
-    DateTime vencimento = DateTime(competencia.year, competencia.month, 10);
-    final formKey = GlobalKey<FormState>();
-    final resultado = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Gerar mensalidades'),
-          content: SizedBox(
-            width: 420,
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Competência: ${mesLabel(competencia)}'),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: valorController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Valor por passageiro (R\$)',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) {
-                      final n = double.tryParse((v ?? '').replaceAll(',', '.'));
-                      return n == null || n <= 0
-                          ? 'Informe um valor válido.'
-                          : null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Vencimento'),
-                    subtitle: Text(dataLabel(vencimento.toIso8601String())),
-                    trailing: const Icon(Icons.calendar_month),
-                    onTap: () async {
-                      final data = await showDatePicker(
-                        context: context,
-                        initialDate: vencimento,
-                        firstDate: DateTime(
-                          competencia.year,
-                          competencia.month,
-                          1,
-                        ),
-                        lastDate: DateTime(
-                          competencia.year,
-                          competencia.month + 1,
-                          0,
-                        ),
-                      );
-                      if (data != null) setDialogState(() => vencimento = data);
-                    },
-                  ),
-                  TextField(
-                    controller: descricaoController,
-                    decoration: const InputDecoration(
-                      labelText: 'Descrição (opcional)',
-                    ),
-                  ),
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: vm,
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, limites) {
+          final largo = limites.maxWidth >= 720;
+          final margem = largo ? 24.0 : 12.0;
+          return RefreshIndicator(
+            onRefresh: vm.carregar,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(margem, 12, margem, 24),
+              children: [
+                _cabecalho(),
+                if (vm.carregando) ...[
                   const SizedBox(height: 8),
-                  const Text(
-                    'Será criada uma cobrança para cada passageiro ativo. Cobranças já existentes nessa competência serão preservadas.',
-                  ),
+                  const LinearProgressIndicator(),
                 ],
-              ),
+                const SizedBox(height: 12),
+                _CartaoValorMensalidade(vm: vm, aoAlterar: _abrirAlterarValor),
+                const SizedBox(height: 12),
+                _ResumoMes(resumo: vm.resumo),
+                const SizedBox(height: 16),
+                _filtros(largo),
+                const SizedBox(height: 12),
+                _conteudo(largo),
+              ],
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (!formKey.currentState!.validate()) return;
-                Navigator.pop(dialogContext, {
-                  'valor': double.parse(
-                    valorController.text.replaceAll(',', '.'),
-                  ),
-                  'vencimento': vencimento,
-                  'descricao': descricaoController.text.trim(),
-                });
-              },
-              child: const Text('Gerar'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
-    valorController.dispose();
-    descricaoController.dispose();
+  }
+
+  Future<void> _abrirAlterarValor() async {
+    final atual = vm.valorMensalidade;
+    if (atual == null) return;
+    final resultado = await showDialog<ResultadoAlteracao>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _DialogoAlterarValor(vm: vm, atual: atual),
+    );
     if (resultado == null || !mounted) return;
-    try {
-      await vm.gerarMensalidades(
-        competencia: competencia,
-        vencimento: resultado['vencimento'] as DateTime,
-        valor: resultado['valor'] as double,
-        descricao: (resultado['descricao'] as String).isEmpty
-            ? null
-            : resultado['descricao'] as String,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Mensalidades geradas. Cobranças existentes foram mantidas.',
+    final valor = formatarCentavos(resultado.valorCentavos);
+    final partes = [
+      'Mensalidade alterada para $valor.',
+      if (resultado.atualizadas > 0)
+        '${resultado.atualizadas} assinatura(s) passam a pagar o novo valor '
+            'na próxima cobrança.',
+      if (resultado.falhas > 0)
+        '${resultado.falhas} assinatura(s) não puderam ser atualizadas; '
+            'confira no painel do Stripe.',
+    ];
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 8),
+        content: Text(partes.join(' ')),
+      ),
+    );
+    vm.carregarValor();
+  }
+
+  Widget _cabecalho() {
+    final tema = Theme.of(context);
+    return Row(
+      children: [
+        if (widget.onVoltar != null) ...[
+          IconButton(
+            onPressed: widget.onVoltar,
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Voltar',
+          ),
+          Text(
+            'Financeiro',
+            style: tema.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+        const Spacer(),
+        IconButton(
+          tooltip: 'Mês anterior',
+          onPressed: vm.carregando ? null : () => vm.mudarMes(-1),
+          icon: const Icon(Icons.chevron_left),
+        ),
+        Flexible(
+          flex: 3,
+          child: Semantics(
+            label: 'Competência',
+            child: Text(
+              formatarCompetencia(vm.competencia),
+              textAlign: TextAlign.center,
+              style: tema.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível gerar mensalidades: $e')),
+        IconButton(
+          tooltip: 'Próximo mês',
+          onPressed: vm.carregando ? null : () => vm.mudarMes(1),
+          icon: const Icon(Icons.chevron_right),
+        ),
+        IconButton(
+          tooltip: 'Atualizar',
+          onPressed: vm.carregando ? null : vm.carregar,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    );
+  }
+
+  Widget _filtros(bool largo) {
+    final tema = Theme.of(context);
+    final chips = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          'Status:',
+          style: tema.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        for (final f in FiltroPagamento.values)
+          ChoiceChip(
+            label: Text('${f.rotulo} (${vm.contar(f)})'),
+            selected: vm.filtro == f,
+            onSelected: (_) => vm.filtrar(f),
+          ),
+      ],
+    );
+    final busca = TextField(
+      controller: _busca,
+      onChanged: vm.buscar,
+      decoration: InputDecoration(
+        hintText: 'Buscar passageiro',
+        prefixIcon: const Icon(Icons.search),
+        isDense: true,
+        border: const OutlineInputBorder(),
+        suffixIcon: vm.busca.isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Limpar busca',
+                onPressed: () {
+                  _busca.clear();
+                  vm.buscar('');
+                },
+                icon: const Icon(Icons.close),
+              ),
+      ),
+    );
+
+    if (!largo) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [chips, const SizedBox(height: 12), busca],
       );
     }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: chips),
+        const SizedBox(width: 16),
+        SizedBox(width: 280, child: busca),
+      ],
+    );
   }
 
-  Future<void> registrarPagamento(Map<String, dynamic> mensalidade) async {
-    final valorController = TextEditingController(
-      text: vm.saldo(mensalidade).toStringAsFixed(2),
-    );
-    final observacaoController = TextEditingController();
-    String forma = 'pix';
-    final formKey = GlobalKey<FormState>();
-    final resultado = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(
-            'Registrar pagamento — ${mensalidade['passageiros']?['nome'] ?? 'Passageiro'}',
-          ),
-          content: SizedBox(
-            width: 400,
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Saldo em aberto: ${moeda(vm.saldo(mensalidade))}'),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: valorController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Valor recebido (R\$)',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) {
-                      final n = double.tryParse((v ?? '').replaceAll(',', '.'));
-                      if (n == null || n <= 0)
-                        return 'Informe um valor válido.';
-                      if (n > vm.saldo(mensalidade) + 0.009)
-                        return 'O valor excede o saldo em aberto.';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: forma,
-                    decoration: const InputDecoration(
-                      labelText: 'Forma de pagamento',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'pix', child: Text('Pix')),
-                      DropdownMenuItem(
-                        value: 'dinheiro',
-                        child: Text('Dinheiro'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'transferencia',
-                        child: Text('Transferência'),
-                      ),
-                      DropdownMenuItem(value: 'cartao', child: Text('Cartão')),
-                      DropdownMenuItem(value: 'outro', child: Text('Outro')),
-                    ],
-                    onChanged: (v) => setDialogState(() => forma = v ?? 'pix'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: observacaoController,
-                    decoration: const InputDecoration(
-                      labelText: 'Observação (opcional)',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (!formKey.currentState!.validate()) return;
-                Navigator.pop(dialogContext, {
-                  'valor': double.parse(
-                    valorController.text.replaceAll(',', '.'),
-                  ),
-                  'forma': forma,
-                  'observacao': observacaoController.text.trim(),
-                });
-              },
-              child: const Text('Confirmar recebimento'),
-            ),
-          ],
+  Widget _conteudo(bool largo) {
+    // Os estados têm rolagem própria: altura fixa dentro do ListView.
+    Widget estado(Widget filho) => SizedBox(height: 320, child: filho);
+
+    if (vm.erro != null && vm.linhas.isEmpty) {
+      return estado(EstadoErro(mensagem: vm.erro, aoTentarDeNovo: vm.carregar));
+    }
+    if (vm.carregando && vm.linhas.isEmpty) {
+      return estado(const EstadoCarregando());
+    }
+    if (vm.linhas.isEmpty) {
+      return estado(
+        const EstadoVazio(
+          icone: Icons.groups_outlined,
+          titulo: 'Nenhum passageiro cadastrado',
+          mensagem: 'Cadastre passageiros e crie o acesso deles ao app.',
         ),
+      );
+    }
+    final linhas = vm.linhasFiltradas;
+    if (linhas.isEmpty) {
+      return estado(
+        EstadoVazio(
+          icone: Icons.filter_alt_off_outlined,
+          titulo: 'Ninguém neste filtro',
+          mensagem: vm.busca.isEmpty
+              ? 'Nenhum passageiro com status "${vm.filtro.rotulo}" em '
+                    '${formatarCompetencia(vm.competencia)}.'
+              : 'Nenhum passageiro encontrado para "${vm.busca}".',
+        ),
+      );
+    }
+    return largo
+        ? _TabelaPassageiros(linhas: linhas)
+        : _ListaPassageiros(linhas: linhas);
+  }
+}
+
+/// Valor vigente da mensalidade no Stripe + botão "Alterar valor".
+class _CartaoValorMensalidade extends StatelessWidget {
+  const _CartaoValorMensalidade({required this.vm, required this.aoAlterar});
+
+  final FinanceiroViewModel vm;
+  final VoidCallback aoAlterar;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final cores = tema.colorScheme;
+    final valor = vm.valorMensalidade;
+
+    final Widget detalhe;
+    if (valor != null) {
+      detalhe = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${formatarCentavos(valor.valorCentavos)} / mês',
+            style: tema.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: cores.onPrimaryContainer,
+            ),
+          ),
+          Text(
+            valor.assinaturas == 1
+                ? '1 assinatura em vigor'
+                : '${valor.assinaturas} assinaturas em vigor',
+            style: tema.textTheme.bodySmall?.copyWith(
+              color: cores.onPrimaryContainer,
+            ),
+          ),
+        ],
+      );
+    } else if (vm.carregandoValor) {
+      detalhe = Text(
+        'Consultando o Stripe…',
+        style: tema.textTheme.bodyMedium?.copyWith(
+          color: cores.onPrimaryContainer,
+        ),
+      );
+    } else {
+      detalhe = Text(
+        vm.erroValor ?? 'Valor indisponível.',
+        style: tema.textTheme.bodyMedium?.copyWith(color: cores.error),
+      );
+    }
+
+    final botao = valor != null
+        ? FilledButton.icon(
+            onPressed: aoAlterar,
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Alterar valor'),
+          )
+        : vm.carregandoValor
+        ? const SizedBox.square(
+            dimension: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : OutlinedButton.icon(
+            onPressed: vm.carregarValor,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Tentar de novo'),
+          );
+
+    return CartaoApp(
+      cor: cores.primaryContainer,
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 12,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.sell_outlined, color: cores.primary),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Mensalidade no Stripe',
+                      style: tema.textTheme.labelLarge?.copyWith(
+                        color: cores.onPrimaryContainer,
+                      ),
+                    ),
+                    detalhe,
+                  ],
+                ),
+              ),
+            ],
+          ),
+          botao,
+        ],
       ),
     );
-    valorController.dispose();
-    observacaoController.dispose();
-    if (resultado == null || !mounted) return;
+  }
+}
+
+class _DialogoAlterarValor extends StatefulWidget {
+  const _DialogoAlterarValor({required this.vm, required this.atual});
+
+  final FinanceiroViewModel vm;
+  final ValorMensalidade atual;
+
+  @override
+  State<_DialogoAlterarValor> createState() => _DialogoAlterarValorState();
+}
+
+class _DialogoAlterarValorState extends State<_DialogoAlterarValor> {
+  final _form = GlobalKey<FormState>();
+  late final _valor = TextEditingController(
+    text: formatarCentavos(widget.atual.valorCentavos).replaceFirst(r'R$ ', ''),
+  );
+  late var _aplicarAtuais = widget.atual.assinaturas > 0;
+  var _enviando = false;
+  String? _erro;
+
+  /// Teto padrão do Pix Automático autorizado pelos assinantes (R$ 250,00).
+  static const _tetoPixPadrao = 25000;
+
+  @override
+  void initState() {
+    super.initState();
+    _valor.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _valor.dispose();
+    super.dispose();
+  }
+
+  String? _validar(String? texto) {
+    final centavos = centavosDoTexto(texto ?? '');
+    if (centavos == null) return 'Informe um valor, ex.: 250,00';
+    if (centavos < 100 || centavos > 1000000) {
+      return 'Use um valor entre R\$ 1,00 e R\$ 10.000,00';
+    }
+    if (centavos == widget.atual.valorCentavos) {
+      return 'Este já é o valor atual';
+    }
+    return null;
+  }
+
+  Future<void> _confirmar() async {
+    if (_enviando || !_form.currentState!.validate()) return;
+    setState(() {
+      _enviando = true;
+      _erro = null;
+    });
     try {
-      await vm.registrarPagamento(
-        mensalidadeId: mensalidade['id'].toString(),
-        valor: resultado['valor'] as double,
-        formaPagamento: resultado['forma'] as String,
-        observacao: (resultado['observacao'] as String).isEmpty
-            ? null
-            : resultado['observacao'] as String,
+      final resultado = await widget.vm.alterarValor(
+        centavosDoTexto(_valor.text)!,
+        aplicarAtuais: _aplicarAtuais,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Pagamento registrado.')));
-    } catch (e) {
+      Navigator.of(context).pop(resultado);
+    } on MensalidadeException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível registrar o pagamento: $e')),
-      );
+      setState(() {
+        _enviando = false;
+        _erro = e.mensagem;
+      });
     }
   }
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: vm,
-    builder: (context, _) {
-      final lista = vm.mensalidades.where((m) {
-        final s = vm.status(m);
-        return filtro == 'todas' || filtro == s;
-      }).toList();
-      final total = vm.mensalidades.fold<double>(
-        0,
-        (a, m) => a + (m['valor'] as num).toDouble(),
-      );
-      final recebido = vm.mensalidades.fold<double>(
-        0,
-        (a, m) => a + vm.recebido(m),
-      );
-      final pendente = vm.mensalidades.fold<double>(
-        0,
-        (a, m) => a + vm.saldo(m),
-      );
-      return Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Row(
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final cores = tema.colorScheme;
+    final assinaturas = widget.atual.assinaturas;
+    final novo = centavosDoTexto(_valor.text);
+    final acimaTetoPix =
+        _aplicarAtuais && novo != null && novo > _tetoPixPadrao;
+
+    return AlertDialog(
+      title: const Text('Alterar valor da mensalidade'),
+      content: SizedBox(
+        width: 480,
+        child: Form(
+          key: _form,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                IconButton(
-                  onPressed: widget.onVoltar,
-                  icon: const Icon(Icons.arrow_back),
+                Text(
+                  'Valor atual: '
+                  '${formatarCentavos(widget.atual.valorCentavos)} / mês',
                 ),
-                const Expanded(
-                  child: Text(
-                    'Financeiro',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _valor,
+                  enabled: !_enviando,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Novo valor mensal',
+                    prefixText: 'R\$ ',
+                    hintText: '250,00',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: _validar,
+                  onFieldSubmitted: (_) => _confirmar(),
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _aplicarAtuais,
+                  onChanged: _enviando || assinaturas == 0
+                      ? null
+                      : (v) => setState(() => _aplicarAtuais = v ?? false),
+                  title: Text(
+                    assinaturas == 0
+                        ? 'Nenhuma assinatura em vigor'
+                        : assinaturas == 1
+                        ? 'Aplicar também à assinatura atual'
+                        : 'Aplicar também às $assinaturas assinaturas atuais',
+                  ),
+                  subtitle: const Text(
+                    'Sem cobrança proporcional: o novo valor vale a partir da '
+                    'próxima fatura. Desmarcado, só novas assinaturas pagam o '
+                    'novo valor.',
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Mês anterior',
-                  onPressed: () => setState(() {
-                    competencia = DateTime(
-                      competencia.year,
-                      competencia.month - 1,
-                    );
-                    vm.carregar(competencia: competencia);
-                  }),
-                  icon: const Icon(Icons.chevron_left),
+                if (acimaTetoPix) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: cores.error),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Quem paga por Pix Automático autorizou cobranças '
+                          'de até R\$ 250,00. Acima disso, a cobrança Pix '
+                          'dessas pessoas pode falhar até elas autorizarem '
+                          'de novo pelo portal de pagamento.',
+                          style: tema.textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (_erro != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_erro!, style: TextStyle(color: cores.error)),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _enviando ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton.icon(
+          onPressed: _enviando ? null : _confirmar,
+          icon: _enviando
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.check),
+          label: const Text('Alterar no Stripe'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ResumoMes extends StatelessWidget {
+  const _ResumoMes({required this.resumo});
+
+  final ResumoFinanceiro resumo;
+
+  @override
+  Widget build(BuildContext context) {
+    final cores = CoresStatus.of(context);
+    final itens = [
+      (
+        'Pagaram',
+        '${resumo.pagaram} de ${resumo.total}',
+        Icons.check_circle_outline,
+        cores.sucesso,
+      ),
+      (
+        'Não pagaram',
+        '${resumo.naoPagaram}',
+        Icons.pending_outlined,
+        resumo.naoPagaram == 0 ? cores.neutro : cores.atencao,
+      ),
+      (
+        'Recebido no mês',
+        formatarCentavos(resumo.recebidoCentavos),
+        Icons.payments_outlined,
+        cores.informativo,
+      ),
+      (
+        'Em aberto',
+        formatarCentavos(resumo.emAbertoCentavos),
+        Icons.account_balance_wallet_outlined,
+        resumo.atrasados > 0 ? cores.erro : cores.neutro,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, limites) {
+        final colunas = limites.maxWidth >= 900 ? 4 : 2;
+        const espaco = 12.0;
+        final largura = (limites.maxWidth - espaco * (colunas - 1)) / colunas;
+        return Wrap(
+          spacing: espaco,
+          runSpacing: espaco,
+          children: [
+            for (final (titulo, valor, icone, cor) in itens)
+              SizedBox(
+                width: largura,
+                child: _CartaoResumo(
+                  titulo: titulo,
+                  valor: valor,
+                  icone: icone,
+                  cor: cor,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CartaoResumo extends StatelessWidget {
+  const _CartaoResumo({
+    required this.titulo,
+    required this.valor,
+    required this.icone,
+    required this.cor,
+  });
+
+  final String titulo;
+  final String valor;
+  final IconData icone;
+  final CorStatus cor;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return CartaoApp(
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: cor.fundo,
+            child: Icon(icone, color: cor.cor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  style: tema.textTheme.bodySmall?.copyWith(
+                    color: tema.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 Text(
-                  mesLabel(competencia),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                IconButton(
-                  tooltip: 'Próximo mês',
-                  onPressed: () => setState(() {
-                    competencia = DateTime(
-                      competencia.year,
-                      competencia.month + 1,
-                    );
-                    vm.carregar(competencia: competencia);
-                  }),
-                  icon: const Icon(Icons.chevron_right),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: gerarMensalidades,
-                  icon: const Icon(Icons.post_add),
-                  label: const Text('Gerar mensalidades'),
-                ),
-              ],
-            ),
-          ),
-          if (vm.carregando) const LinearProgressIndicator(),
-          if (vm.erro != null)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(vm.erro!, style: const TextStyle(color: Colors.red)),
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _resumo('Cobrado', moeda(total), Icons.receipt_long),
-                _resumo('Recebido', moeda(recebido), Icons.payments_outlined),
-                _resumo('Em aberto', moeda(pendente), Icons.pending_actions),
-                _resumo(
-                  'Mensalidades',
-                  '${vm.mensalidades.length}',
-                  Icons.people_alt_outlined,
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Row(
-              children: [
-                const Text('Exibir: '),
-                DropdownButton<String>(
-                  value: filtro,
-                  items: const [
-                    DropdownMenuItem(value: 'todas', child: Text('Todas')),
-                    DropdownMenuItem(
-                      value: 'pendente',
-                      child: Text('Pendentes'),
-                    ),
-                    DropdownMenuItem(value: 'parcial', child: Text('Parciais')),
-                    DropdownMenuItem(
-                      value: 'atrasada',
-                      child: Text('Atrasadas'),
-                    ),
-                    DropdownMenuItem(value: 'paga', child: Text('Pagas')),
-                  ],
-                  onChanged: (v) => setState(() => filtro = v ?? 'todas'),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => vm.carregar(competencia: competencia),
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'Atualizar',
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: vm.carregando && vm.mensalidades.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : lista.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Nenhuma mensalidade nesta competência. Gere as mensalidades para começar.',
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-                    itemCount: lista.length,
-                    itemBuilder: (context, index) {
-                      final m = lista[index];
-                      final nome =
-                          m['passageiros']?['nome']?.toString() ?? 'Passageiro';
-                      final status = vm.status(m);
-                      final saldo = vm.saldo(m);
-                      final cor = status == 'paga'
-                          ? Colors.green
-                          : status == 'atrasada'
-                          ? Colors.red
-                          : status == 'parcial'
-                          ? Colors.orange
-                          : Colors.blue;
-                      final pagamentos = List<Map<String, dynamic>>.from(
-                        m['pagamentos'] ?? const [],
-                      );
-                      return Card(
-                        child: ExpansionTile(
-                          leading: CircleAvatar(
-                            backgroundColor: cor.withValues(alpha: .12),
-                            child: Icon(Icons.person_outline, color: cor),
-                          ),
-                          title: Text(
-                            nome,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: Text(
-                            '${moeda((m['valor'] as num).toDouble())} • Vencimento ${dataLabel(m['vencimento'].toString())} • ${status.toUpperCase()}',
-                          ),
-                          trailing: saldo > 0.009
-                              ? TextButton(
-                                  onPressed: () => registrarPagamento(m),
-                                  child: const Text('Registrar pagamento'),
-                                )
-                              : const Chip(label: Text('Quitada')),
-                          childrenPadding: const EdgeInsets.fromLTRB(
-                            16,
-                            0,
-                            16,
-                            12,
-                          ),
-                          children: [
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                'Recebido: ${moeda(vm.recebido(m))}   |   Saldo: ${moeda(saldo)}',
-                              ),
-                            ),
-                            if (pagamentos.isEmpty)
-                              const ListTile(
-                                title: Text('Nenhum pagamento registrado.'),
-                              )
-                            else
-                              ...pagamentos.map(
-                                (p) => ListTile(
-                                  dense: true,
-                                  leading: const Icon(Icons.payments_outlined),
-                                  title: Text(
-                                    moeda((p['valor'] as num).toDouble()),
-                                  ),
-                                  subtitle: Text(
-                                    '${dataLabel(p['pago_em'].toString())} • ${p['forma_pagamento']}',
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      );
-                    },
+                  valor,
+                  style: tema.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
+                ),
+              ],
+            ),
           ),
         ],
-      );
-    },
-  );
+      ),
+    );
+  }
+}
 
-  Widget _resumo(String titulo, String valor, IconData icone) => SizedBox(
-    width: 210,
-    child: Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Icon(icone, size: 28),
-            const SizedBox(width: 12),
-            Expanded(
+String _valor(LinhaFinanceira l) =>
+    l.valorCentavos == null ? '—' : formatarCentavos(l.valorCentavos!);
+
+String _dataOuTraco(DateTime? d) => d == null ? '—' : formatarData(d);
+
+/// Tabela (tablet/desktop).
+class _TabelaPassageiros extends StatelessWidget {
+  const _TabelaPassageiros({required this.linhas});
+
+  final List<LinhaFinanceira> linhas;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final secundario = tema.textTheme.bodySmall?.copyWith(
+      color: tema.colorScheme.onSurfaceVariant,
+    );
+    return CartaoApp(
+      padding: EdgeInsets.zero,
+      child: LayoutBuilder(
+        builder: (context, limites) => SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: limites.maxWidth),
+            child: DataTable(
+              headingTextStyle: tema.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+              dataRowMinHeight: 56,
+              dataRowMaxHeight: 68,
+              columns: const [
+                DataColumn(label: Text('Passageiro')),
+                DataColumn(label: Text('Telefone')),
+                DataColumn(label: Text('Assinatura')),
+                DataColumn(label: Text('Valor'), numeric: true),
+                DataColumn(label: Text('Vencimento')),
+                DataColumn(label: Text('Pago em')),
+                DataColumn(label: Text('Status')),
+              ],
+              rows: [
+                for (final l in linhas)
+                  DataRow(
+                    key: ValueKey(l.chave),
+                    cells: [
+                      DataCell(
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l.nome,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (l.instituicao != null)
+                              Text(l.instituicao!, style: secundario),
+                          ],
+                        ),
+                      ),
+                      DataCell(Text(_formatarTelefone(l.telefone))),
+                      DataCell(
+                        l.perfilId == null
+                            ? Text('—', style: secundario)
+                            : ChipStatus.de(
+                                statusAssinatura(l.statusAssinatura),
+                              ),
+                      ),
+                      DataCell(Text(_valor(l))),
+                      DataCell(Text(_dataOuTraco(l.vencimento))),
+                      DataCell(Text(_dataOuTraco(l.pagoEm))),
+                      DataCell(ChipStatus.de(l.situacao.info)),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Lista de cartões (celular): mesma informação da tabela, sem rolar de lado.
+class _ListaPassageiros extends StatelessWidget {
+  const _ListaPassageiros({required this.linhas});
+
+  final List<LinhaFinanceira> linhas;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final secundario = tema.textTheme.bodySmall?.copyWith(
+      color: tema.colorScheme.onSurfaceVariant,
+    );
+    return Column(
+      children: [
+        for (final l in linhas)
+          Padding(
+            key: ValueKey(l.chave),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: CartaoApp(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(titulo, style: const TextStyle(color: Colors.grey)),
-                  Text(
-                    valor,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l.nome,
+                              style: tema.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (l.instituicao != null)
+                              Text(l.instituicao!, style: secundario),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ChipStatus.de(l.situacao.info),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 4,
+                    children: [
+                      Text('Valor: ${_valor(l)}', style: secundario),
+                      Text(
+                        'Vencimento: ${_dataOuTraco(l.vencimento)}',
+                        style: secundario,
+                      ),
+                      if (l.pagoEm != null)
+                        Text(
+                          'Pago em: ${formatarData(l.pagoEm!)}',
+                          style: secundario,
+                        ),
+                      if (l.telefone != null)
+                        Text(_formatarTelefone(l.telefone), style: secundario),
+                      if (l.perfilId != null)
+                        Text(
+                          'Assinatura: '
+                          '${statusAssinatura(l.statusAssinatura).rotulo}',
+                          style: secundario,
+                        ),
+                    ],
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    ),
-  );
+          ),
+      ],
+    );
+  }
+}
+
+String _formatarTelefone(String? telefone) {
+  if (telefone == null) return '—';
+  final d = telefone.replaceAll(RegExp(r'\D'), '');
+  if (d.length == 11) {
+    return '(${d.substring(0, 2)}) ${d.substring(2, 7)}-${d.substring(7)}';
+  }
+  if (d.length == 10) {
+    return '(${d.substring(0, 2)}) ${d.substring(2, 6)}-${d.substring(6)}';
+  }
+  return telefone;
 }

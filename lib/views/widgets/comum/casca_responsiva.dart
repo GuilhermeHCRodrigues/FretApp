@@ -19,7 +19,9 @@ class DestinoCasca {
 ///
 /// - Largura >= [AppBreakpoints.desktop] (900 px): NavigationRail estendida à
 ///   esquerda + cabeçalho branco com o título da aba.
-/// - Abaixo disso: AppBar no topo + NavigationBar embaixo.
+/// - Abaixo disso: AppBar no topo + NavigationBar embaixo. Com mais de
+///   [maxDestinosBarra] destinos (painel do administrador), a barra de baixo
+///   não comporta os itens: usa um menu lateral (gaveta) aberto pela AppBar.
 ///
 /// O conteúdo de cada aba é decidido por quem usa, via [corpo]; a casca só
 /// cuida da navegação. O índice selecionado fica no estado de quem chama.
@@ -57,33 +59,118 @@ class CascaResponsiva extends StatelessWidget {
 
   final Widget? botaoFlutuante;
 
+  /// Máximo de itens que cabem na NavigationBar do celular.
+  static const maxDestinosBarra = 5;
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, limites) {
         final desktop = AppBreakpoints.ehDesktop(limites.maxWidth);
-        return desktop ? _desktop(context, limites.maxWidth) : _celular(context);
+        return desktop
+            ? _desktop(context, limites.maxWidth)
+            : _celular(context);
       },
     );
   }
 
   Widget _celular(BuildContext context) {
+    final usarGaveta = destinos.length > maxDestinosBarra;
     return Scaffold(
-      appBar: AppBar(title: Text(titulo), actions: acoes),
+      appBar: AppBar(
+        title: Text(usarGaveta ? destinos[indiceSelecionado].rotulo : titulo),
+        actions: acoes,
+      ),
+      drawer: usarGaveta ? _gaveta() : null,
       body: SafeArea(bottom: false, child: corpo(context, false)),
       floatingActionButton: botaoFlutuante,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: indiceSelecionado,
-        onDestinationSelected: aoSelecionar,
-        destinations: [
-          for (final d in destinos)
-            NavigationDestination(
-              icon: Icon(d.icone),
-              selectedIcon: Icon(d.iconeSelecionado),
-              label: d.rotulo,
+      bottomNavigationBar: usarGaveta
+          ? null
+          : NavigationBar(
+              selectedIndex: indiceSelecionado,
+              onDestinationSelected: aoSelecionar,
+              destinations: [
+                for (final d in destinos)
+                  NavigationDestination(
+                    icon: Icon(d.icone),
+                    selectedIcon: Icon(d.iconeSelecionado),
+                    label: d.rotulo,
+                  ),
+              ],
             ),
-        ],
-      ),
+    );
+  }
+
+  /// Menu lateral do celular quando há destinos demais para a barra inferior.
+  Widget _gaveta() {
+    return Builder(
+      builder: (context) {
+        final tema = Theme.of(context);
+        final cores = tema.colorScheme;
+        return NavigationDrawer(
+          selectedIndex: indiceSelecionado,
+          onDestinationSelected: (indice) {
+            Scaffold.of(context).closeDrawer();
+            aoSelecionar(indice);
+          },
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 24, 16, 8),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.directions_bus_filled,
+                    size: 32,
+                    color: cores.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          titulo,
+                          style: tema.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (subtitulo != null)
+                          Text(
+                            subtitulo!.toUpperCase(),
+                            style: tema.textTheme.labelSmall?.copyWith(
+                              color: cores.onSurfaceVariant,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+              child: Divider(),
+            ),
+            for (final d in destinos)
+              NavigationDrawerDestination(
+                icon: Icon(d.icone),
+                selectedIcon: Icon(d.iconeSelecionado),
+                label: Text(d.rotulo),
+              ),
+            if (rodapeLateral != null) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+                child: Divider(),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: rodapeLateral,
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 
@@ -96,6 +183,11 @@ class CascaResponsiva extends StatelessWidget {
       body: Row(
         children: [
           NavigationRail(
+            // Em janelas baixas (muitos destinos), cabeçalho e itens rolam;
+            // o rodapé (sair) fica sempre visível embaixo.
+            scrollable: true,
+            leadingAtTop: false,
+            trailingAtBottom: true,
             extended: true,
             minExtendedWidth: 232,
             labelType: NavigationRailLabelType.none,
@@ -135,22 +227,17 @@ class CascaResponsiva extends StatelessWidget {
             ),
             trailing: rodapeLateral == null
                 ? null
-                : Expanded(
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: SizedBox(
-                        width: 232,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Divider(),
-                            Padding(
-                              padding: const EdgeInsets.all(8),
-                              child: rodapeLateral,
-                            ),
-                          ],
+                : SizedBox(
+                    width: 232,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Divider(),
+                        Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: rodapeLateral,
                         ),
-                      ),
+                      ],
                     ),
                   ),
             destinations: [
