@@ -276,27 +276,27 @@ As capturas de tela abaixo apresentam as principais interfaces do FretApp.
 
 ### Login
 
-![Tela de login](docs/screenshots/login.png)
+![Tela de login]([docs/screenshots/login.png](https://github.com/GuilhermeHCRodrigues/FretApp/blob/main/docs/screenshots/Tela%20de%20login.png))
 
 ### Dashboard administrativo
 
-![Dashboard administrativo](docs/screenshots/dashboard.png)
+![Dashboard administrativo]([docs/screenshots/dashboard.png](https://github.com/GuilhermeHCRodrigues/FretApp/blob/main/docs/screenshots/Dashboard%20administrativo.png))
 
 ### Gerenciamento de passageiros
 
-![Gerenciamento de passageiros](docs/screenshots/passageiros.png)
+![Gerenciamento de passageiros]([docs/screenshots/passageiros.png](https://github.com/GuilhermeHCRodrigues/FretApp/blob/main/docs/screenshots/Gerenciamento%20de%20passageiros.png))
 
 ### Área do motorista
 
-![Área do motorista](docs/screenshots/motorista.png)
+![Área do motorista]([docs/screenshots/motorista.png](https://github.com/GuilhermeHCRodrigues/FretApp/blob/main/docs/screenshots/%C3%81rea%20do%20motorista.png))
 
 ### Acompanhamento do ônibus
 
-![Acompanhamento do ônibus](docs/screenshots/mapa.png)
+![Acompanhamento do ônibus]([docs/screenshots/mapa.png](https://github.com/GuilhermeHCRodrigues/FretApp/blob/main/docs/screenshots/Acompanhamento%20do%20%C3%B4nibus.png))
 
 ### Gerenciamento financeiro
 
-![Gerenciamento financeiro](docs/screenshots/financeiro.png)
+![Gerenciamento financeiro]([docs/screenshots/financeiro.png](https://github.com/GuilhermeHCRodrigues/FretApp/blob/main/docs/screenshots/Gerenciamento%20financeiro.png))
 
 ## 👥 Equipe de desenvolvimento
 
