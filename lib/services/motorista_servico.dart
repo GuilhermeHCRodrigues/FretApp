@@ -103,7 +103,9 @@ Stream<List<PosicaoMotorista>> acompanharOnibus() => Supabase.instance.client
             (l['longitude'] as num).toDouble(),
             rumo: (l['rumo'] as num?)?.toDouble(),
             precisao: (l['precisao'] as num?)?.toDouble(),
-            atualizadoEm: DateTime.tryParse(l['atualizado_em'] as String? ?? ''),
+            atualizadoEm: DateTime.tryParse(
+              l['atualizado_em'] as String? ?? '',
+            ),
           ),
       ],
     );

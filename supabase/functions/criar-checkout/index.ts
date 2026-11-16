@@ -5,9 +5,10 @@ import {
   corsHeaders,
   json,
   passageiroAutenticado,
-  PRICE_ID,
+  precoAtual,
   stripe,
   supabaseAdmin,
+  tetoPixCentavos,
 } from "../_shared/stripe.ts";
 
 const PIX_HABILITADO = Deno.env.get("STRIPE_PIX_HABILITADO") === "true";
@@ -54,12 +55,15 @@ Deno.serve(async (req) => {
       if (error) throw error;
     }
 
+    // Preço vigente: o administrador pode ter alterado o valor.
+    const precoId = await precoAtual();
+
     // deno-lint-ignore no-explicit-any
     const params: any = {
       mode: "subscription",
       customer: customerId,
       client_reference_id: user.id,
-      line_items: [{ price: PRICE_ID, quantity: 1 }],
+      line_items: [{ price: precoId, quantity: 1 }],
       subscription_data: { metadata: { passageiro_id: user.id } },
       locale: "pt-BR",
       success_url: `${APP_URL}/?pagamento=sucesso`,
@@ -67,14 +71,15 @@ Deno.serve(async (req) => {
     };
 
     if (PIX_HABILITADO) {
+      const preco = await stripe.prices.retrieve(precoId);
       params.payment_method_types = ["card", "pix"];
       params.payment_method_options = {
         pix: {
           mandate_options: {
             reference: "Mensalidade FretApp",
             amount_type: "maximum",
-            // Teto mensal autorizado no banco (R$ 250,00), com folga para IOF.
-            amount: 25000,
+            // Teto mensal autorizado no banco, com folga para IOF.
+            amount: tetoPixCentavos(preco.unit_amount ?? 20000),
             payment_schedule: "monthly",
           },
         },

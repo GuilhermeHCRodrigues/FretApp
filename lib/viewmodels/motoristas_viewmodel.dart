@@ -25,7 +25,7 @@ class MotoristasViewModel extends ChangeNotifier {
           .from('motoristas')
           .select(
             'id, nome, cpf, telefone, email, cnh_numero, '
-            'cnh_categoria, cnh_validade, ativo',
+            'cnh_categoria, cnh_validade, ativo, perfil_id',
           )
           .order('nome');
 
@@ -33,10 +33,12 @@ class MotoristasViewModel extends ChangeNotifier {
     } catch (exception) {
       if (exception is PostgrestException) {
         if (exception.code == '42P01' || exception.code == '42703') {
-          erro = 'A tabela de motoristas ainda não está pronta. '
+          erro =
+              'A tabela de motoristas ainda não está pronta. '
               'Execute a migração SQL do projeto no Supabase.';
         } else if (exception.code == '42501') {
-          erro = 'Seu usuário não tem permissão para consultar os motoristas. '
+          erro =
+              'Seu usuário não tem permissão para consultar os motoristas. '
               'Entre com uma conta de administrador.';
         } else {
           erro = 'Não foi possível carregar os motoristas.';
@@ -50,7 +52,8 @@ class MotoristasViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> salvar({
+  /// Salva o cadastro e devolve o id dele (novo ou existente).
+  Future<String> salvar({
     String? id,
     required Map<String, dynamic> dados,
   }) async {
@@ -60,17 +63,30 @@ class MotoristasViewModel extends ChangeNotifier {
       'cpf': (dados['cpf'] as String).replaceAll(RegExp(r'\D'), ''),
       'telefone': (dados['telefone'] as String).replaceAll(RegExp(r'\D'), ''),
       'email': (dados['email'] as String?)?.trim().toLowerCase(),
-      'cnh_numero':
-          (dados['cnh_numero'] as String).replaceAll(RegExp(r'\D'), ''),
+      'cnh_numero': (dados['cnh_numero'] as String).replaceAll(
+        RegExp(r'\D'),
+        '',
+      ),
     };
 
+    // perfil_id só é definido pela criação de acesso (Edge Function).
+    registro.remove('perfil_id');
+
+    final String salvoId;
     if (id == null) {
-      await supabase.from('motoristas').insert(registro);
+      final criado = await supabase
+          .from('motoristas')
+          .insert(registro)
+          .select('id')
+          .single();
+      salvoId = criado['id'] as String;
     } else {
       await supabase.from('motoristas').update(registro).eq('id', id);
+      salvoId = id;
     }
 
     await carregar();
+    return salvoId;
   }
 
   Future<void> excluir(String id) async {

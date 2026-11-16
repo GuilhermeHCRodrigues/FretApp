@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../viewmodels/viagens_viewmodel.dart';
+import 'widgets/comum/descartar_ao_fechar.dart';
 
 class ViagensView extends StatefulWidget {
-  const ViagensView({super.key, required this.onVoltar});
+  const ViagensView({super.key, this.onVoltar});
 
-  final VoidCallback onVoltar;
+  /// Quando nulo (painel do administrador), a tela não mostra o próprio
+  /// título nem o botão voltar: a navegação fica a cargo da casca.
+  final VoidCallback? onVoltar;
 
   @override
   State<ViagensView> createState() => _ViagensViewState();
@@ -146,237 +149,238 @@ class _ViagensViewState extends State<ViagensView> {
 
     final dados = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(nova ? 'Agendar viagem' : 'Editar viagem'),
-          content: SizedBox(
-            width: 620,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.sizeOf(context).height * .72,
-              ),
-              child: Form(
-                key: formKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      DropdownButtonFormField<String>(
-                        initialValue: rotaId,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Rota',
-                          border: OutlineInputBorder(),
+      builder: (dialogContext) => DescartarAoFechar(
+        // Descartados só quando o diálogo some (ver widget).
+        controladores: [observacoes, horarioController],
+        child: StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: Text(nova ? 'Agendar viagem' : 'Editar viagem'),
+            content: SizedBox(
+              width: 620,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * .72,
+                ),
+                child: Form(
+                  key: formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        DropdownButtonFormField<String>(
+                          initialValue: rotaId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Rota',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: vm.rotas
+                              .map(
+                                (rota) => DropdownMenuItem<String>(
+                                  value: rota['id'].toString(),
+                                  child: Text(
+                                    '${rota['nome']} • ${rota['origem']} → ${rota['destino']}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          validator: (valor) =>
+                              valor == null ? 'Selecione uma rota' : null,
+                          onChanged: (valor) => rotaId = valor,
                         ),
-                        items: vm.rotas
-                            .map(
-                              (rota) => DropdownMenuItem<String>(
-                                value: rota['id'].toString(),
-                                child: Text(
-                                  '${rota['nome']} • ${rota['origem']} → ${rota['destino']}',
-                                  overflow: TextOverflow.ellipsis,
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: motoristaId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Motorista',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: vm.motoristas
+                              .map(
+                                (motorista) => DropdownMenuItem<String>(
+                                  value: motorista['id'].toString(),
+                                  child: Text(motorista['nome'].toString()),
+                                ),
+                              )
+                              .toList(),
+                          validator: (valor) =>
+                              valor == null ? 'Selecione um motorista' : null,
+                          onChanged: (valor) => motoristaId = valor,
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: veiculoId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Veículo',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: vm.veiculos
+                              .map(
+                                (veiculo) => DropdownMenuItem<String>(
+                                  value: veiculo['id'].toString(),
+                                  child: Text(
+                                    '${veiculo['placa']} • ${veiculo['modelo']} (${veiculo['capacidade']} lugares)',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          validator: (valor) =>
+                              valor == null ? 'Selecione um veículo' : null,
+                          onChanged: (valor) => veiculoId = valor,
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.calendar_month),
+                                label: Text(
+                                  formatarData(dataIso(dataSelecionada)),
+                                ),
+                                onPressed: () async {
+                                  final escolhida = await showDatePicker(
+                                    context: context,
+                                    initialDate: dataSelecionada,
+                                    firstDate: DateTime(2024),
+                                    lastDate: DateTime(2100),
+                                  );
+                                  if (escolhida != null) {
+                                    setDialogState(() {
+                                      dataSelecionada = DateUtils.dateOnly(
+                                        escolhida,
+                                      );
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              width: 125,
+                              child: TextFormField(
+                                controller: horarioController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Saída',
+                                  hintText: '06:30',
+                                  border: OutlineInputBorder(),
+                                ),
+                                keyboardType: TextInputType.datetime,
+                                validator: (valor) =>
+                                    RegExp(r'^([01]\d|2[0-3]):[0-5]\d$')
+                                        .hasMatch((valor ?? '').trim())
+                                    ? null
+                                    : 'Use HH:mm',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: status,
+                          decoration: const InputDecoration(
+                            labelText: 'Status da viagem',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: statusDisponiveis
+                              .map(
+                                (item) => DropdownMenuItem(
+                                  value: item,
+                                  child: Text(rotuloStatus(item)),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (valor) => status = valor ?? 'programada',
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Passageiros',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            )
-                            .toList(),
-                        validator: (valor) =>
-                            valor == null ? 'Selecione uma rota' : null,
-                        onChanged: (valor) => rotaId = valor,
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: motoristaId,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Motorista',
-                          border: OutlineInputBorder(),
+                            ),
+                            Text('${selecionados.length} selecionado(s)'),
+                          ],
                         ),
-                        items: vm.motoristas
-                            .map(
-                              (motorista) => DropdownMenuItem<String>(
-                                value: motorista['id'].toString(),
-                                child: Text(motorista['nome'].toString()),
+                        if (vm.passageiros.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text('Nenhum passageiro ativo cadastrado.'),
+                          )
+                        else
+                          ...vm.passageiros.map(
+                            (passageiro) => CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                              value: selecionados.contains(
+                                passageiro['id'].toString(),
                               ),
-                            )
-                            .toList(),
-                        validator: (valor) =>
-                            valor == null ? 'Selecione um motorista' : null,
-                        onChanged: (valor) => motoristaId = valor,
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: veiculoId,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Veículo',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: vm.veiculos
-                            .map(
-                              (veiculo) => DropdownMenuItem<String>(
-                                value: veiculo['id'].toString(),
-                                child: Text(
-                                  '${veiculo['placa']} • ${veiculo['modelo']} (${veiculo['capacidade']} lugares)',
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        validator: (valor) =>
-                            valor == null ? 'Selecione um veículo' : null,
-                        onChanged: (valor) => veiculoId = valor,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.calendar_month),
-                              label: Text(
-                                formatarData(dataIso(dataSelecionada)),
-                              ),
-                              onPressed: () async {
-                                final escolhida = await showDatePicker(
-                                  context: context,
-                                  initialDate: dataSelecionada,
-                                  firstDate: DateTime(2024),
-                                  lastDate: DateTime(2100),
-                                );
-                                if (escolhida != null) {
-                                  setDialogState(() {
-                                    dataSelecionada = DateUtils.dateOnly(
-                                      escolhida,
-                                    );
-                                  });
-                                }
+                              title: Text(passageiro['nome'].toString()),
+                              onChanged: (marcado) {
+                                setDialogState(() {
+                                  final id = passageiro['id'].toString();
+                                  if (marcado == true) {
+                                    selecionados.add(id);
+                                  } else {
+                                    selecionados.remove(id);
+                                  }
+                                });
                               },
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          SizedBox(
-                            width: 125,
-                            child: TextFormField(
-                              controller: horarioController,
-                              decoration: const InputDecoration(
-                                labelText: 'Saída',
-                                hintText: '06:30',
-                                border: OutlineInputBorder(),
-                              ),
-                              keyboardType: TextInputType.datetime,
-                              validator: (valor) =>
-                                  RegExp(r'^([01]\d|2[0-3]):[0-5]\d$')
-                                      .hasMatch((valor ?? '').trim())
-                                  ? null
-                                  : 'Use HH:mm',
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: status,
-                        decoration: const InputDecoration(
-                          labelText: 'Status da viagem',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: statusDisponiveis
-                            .map(
-                              (item) => DropdownMenuItem(
-                                value: item,
-                                child: Text(rotuloStatus(item)),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (valor) => status = valor ?? 'programada',
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Passageiros',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          Text('${selecionados.length} selecionado(s)'),
-                        ],
-                      ),
-                      if (vm.passageiros.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text('Nenhum passageiro ativo cadastrado.'),
-                        )
-                      else
-                        ...vm.passageiros.map(
-                          (passageiro) => CheckboxListTile(
-                            contentPadding: EdgeInsets.zero,
-                            dense: true,
-                            value: selecionados.contains(
-                              passageiro['id'].toString(),
-                            ),
-                            title: Text(passageiro['nome'].toString()),
-                            onChanged: (marcado) {
-                              setDialogState(() {
-                                final id = passageiro['id'].toString();
-                                if (marcado == true) {
-                                  selecionados.add(id);
-                                } else {
-                                  selecionados.remove(id);
-                                }
-                              });
-                            },
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: observacoes,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'Observações (opcional)',
+                            border: OutlineInputBorder(),
                           ),
                         ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: observacoes,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Observações (opcional)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (!formKey.currentState!.validate()) return;
+                  Navigator.of(dialogContext).pop({
+                    'rota_id': rotaId,
+                    'motorista_id': motoristaId,
+                    'veiculo_id': veiculoId,
+                    'saida_prevista': timestampSaida(
+                      dataSelecionada,
+                      horarioController.text.trim(),
+                    ),
+                    'status': status,
+                    'observacoes': observacoes.text.trim().isEmpty
+                        ? null
+                        : observacoes.text.trim(),
+                    'passageiros_ids': selecionados.toList(),
+                  });
+                },
+                child: const Text('Salvar viagem'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (!formKey.currentState!.validate()) return;
-                Navigator.of(dialogContext).pop({
-                  'rota_id': rotaId,
-                  'motorista_id': motoristaId,
-                  'veiculo_id': veiculoId,
-                  'saida_prevista': timestampSaida(
-                    dataSelecionada,
-                    horarioController.text.trim(),
-                  ),
-                  'status': status,
-                  'observacoes': observacoes.text.trim().isEmpty
-                      ? null
-                      : observacoes.text.trim(),
-                  'passageiros_ids': selecionados.toList(),
-                });
-              },
-              child: const Text('Salvar viagem'),
-            ),
-          ],
         ),
       ),
     );
-
-    observacoes.dispose();
-    horarioController.dispose();
 
     if (dados == null || !mounted) return;
 
@@ -486,17 +490,23 @@ class _ViagensViewState extends State<ViagensView> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: Row(
               children: [
-                IconButton(
-                  onPressed: widget.onVoltar,
-                  icon: const Icon(Icons.arrow_back),
-                  tooltip: 'Voltar',
-                ),
-                const Expanded(
-                  child: Text(
-                    'Gerenciamento de viagens',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                if (widget.onVoltar != null) ...[
+                  IconButton(
+                    onPressed: widget.onVoltar,
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Voltar',
                   ),
-                ),
+                  const Expanded(
+                    child: Text(
+                      'Gerenciamento de viagens',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ] else
+                  const Spacer(),
                 FilledButton.icon(
                   onPressed: () => abrirFormulario(),
                   icon: const Icon(Icons.add),

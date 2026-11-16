@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/acesso_servico.dart';
 import '../viewmodels/passageiros_viewmodel.dart';
+import 'widgets/acesso_app.dart';
 
 class PassageirosView extends StatefulWidget {
-  final VoidCallback onVoltar;
+  /// Quando nulo (painel do administrador), a tela não mostra o próprio
+  /// título nem o botão voltar: a navegação fica a cargo da casca.
+  final VoidCallback? onVoltar;
 
-  const PassageirosView({super.key, required this.onVoltar});
+  const PassageirosView({super.key, this.onVoltar});
 
   @override
   State<PassageirosView> createState() => _PassageirosViewState();
@@ -126,9 +130,14 @@ class _PassageirosViewState extends State<PassageirosView> {
     var ativo = passageiro?['ativo'] as bool? ?? true;
     DateTime? nascimento = DateTime.tryParse(valor('data_nascimento'));
 
-    final nascimentoController = TextEditingController(
-      text: nascimento == null ? '' : formatarData(nascimento),
-    );
+    // Acesso ao app: só no cadastro novo. Cadastros antigos usam o botão
+    // "Criar acesso" do cartão.
+    var criarAcessoApp = novo;
+    // Valores, não controladores: CamposAcesso cuida dos próprios
+    // controladores (descartá-los aqui, com o diálogo ainda fechando,
+    // derrubava o app com "_dependents.isEmpty").
+    var acessoEmail = '';
+    var acessoSenha = '';
 
     final dados = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -205,27 +214,34 @@ class _PassageirosViewState extends State<PassageirosView> {
                           },
                           onChanged: (v) => telefone = v,
                         ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          initialValue: email,
-                          decoration: const InputDecoration(
-                            labelText: 'E-mail (opcional)',
-                            border: OutlineInputBorder(),
+                        if (!criarAcessoApp) ...[
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            initialValue: email,
+                            decoration: const InputDecoration(
+                              labelText: 'E-mail (opcional)',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (v) {
+                              final texto = (v ?? '').trim();
+                              if (texto.isEmpty) return null;
+                              return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                                      .hasMatch(texto)
+                                  ? null
+                                  : 'Informe um e-mail válido';
+                            },
+                            onChanged: (v) => email = v,
                           ),
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (v) {
-                            final texto = (v ?? '').trim();
-                            if (texto.isEmpty) return null;
-                            return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                                    .hasMatch(texto)
-                                ? null
-                                : 'Informe um e-mail válido';
-                          },
-                          onChanged: (v) => email = v,
-                        ),
+                        ],
                         const SizedBox(height: 12),
                         TextFormField(
-                          controller: nascimentoController,
+                          // Sem controlador: a chave recria o campo com a
+                          // data escolhida.
+                          key: ValueKey(nascimento),
+                          initialValue: nascimento == null
+                              ? ''
+                              : formatarData(nascimento!),
                           readOnly: true,
                           decoration: const InputDecoration(
                             labelText: 'Data de nascimento (opcional)',
@@ -248,12 +264,7 @@ class _PassageirosViewState extends State<PassageirosView> {
                               lastDate: hoje,
                             );
                             if (escolhida != null) {
-                              setDialogState(() {
-                                nascimento = escolhida;
-                                nascimentoController.text = formatarData(
-                                  escolhida,
-                                );
-                              });
+                              setDialogState(() => nascimento = escolhida);
                             }
                           },
                         ),
@@ -441,6 +452,38 @@ class _PassageirosViewState extends State<PassageirosView> {
                           ],
                           onChanged: (v) => ativo = v ?? true,
                         ),
+                        if (novo) ...[
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Acesso ao app',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: criarAcessoApp,
+                            onChanged: (v) =>
+                                setDialogState(() => criarAcessoApp = v),
+                            title: const Text('Criar login do passageiro'),
+                            subtitle: const Text(
+                              'Ao entrar com este e-mail, abre direto a '
+                              'tela de passageiro.',
+                            ),
+                          ),
+                          if (criarAcessoApp) ...[
+                            const SizedBox(height: 8),
+                            CamposAcesso(
+                              emailInicial: acessoEmail,
+                              senhaInicial: acessoSenha,
+                              aoMudar: (email, senha) {
+                                acessoEmail = email;
+                                acessoSenha = senha;
+                              },
+                            ),
+                          ],
+                        ],
                       ],
                     ),
                   ),
@@ -460,7 +503,9 @@ class _PassageirosViewState extends State<PassageirosView> {
                     'nome': nome.trim(),
                     'cpf': cpf.replaceAll(RegExp(r'\D'), ''),
                     'telefone': telefone.replaceAll(RegExp(r'\D'), ''),
-                    'email': email.trim().isEmpty ? null : email.trim(),
+                    'email': criarAcessoApp
+                        ? acessoEmail.trim().toLowerCase()
+                        : (email.trim().isEmpty ? null : email.trim()),
                     'data_nascimento': nascimento == null
                         ? null
                         : dataIso(nascimento!),
@@ -488,13 +533,23 @@ class _PassageirosViewState extends State<PassageirosView> {
       ),
     );
 
-    nascimentoController.dispose();
+    acessoEmail = acessoEmail.trim().toLowerCase();
 
     if (dados == null || !mounted) return;
 
+    final String id;
     try {
-      await vm.salvar(id: passageiro?['id'] as String?, dados: dados);
+      id = await vm.salvar(id: passageiro?['id'] as String?, dados: dados);
+    } catch (erro) {
       if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(mensagemErro(erro))));
+      return;
+    }
+
+    if (!mounted) return;
+
+    if (!criarAcessoApp) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -504,11 +559,47 @@ class _PassageirosViewState extends State<PassageirosView> {
           ),
         ),
       );
-    } catch (erro) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(mensagemErro(erro))));
+      return;
     }
+
+    try {
+      await criarAcesso(
+        tipo: TipoAcesso.passageiro,
+        cadastroId: id,
+        email: acessoEmail,
+        senha: acessoSenha,
+      );
+      await vm.carregar();
+      if (!mounted) return;
+      await mostrarCredenciaisCriadas(
+        context,
+        tipo: TipoAcesso.passageiro,
+        email: acessoEmail,
+        senha: acessoSenha,
+      );
+    } on AcessoException catch (erro) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text(
+            'Passageiro cadastrado, mas o login não foi criado: '
+            '${erro.mensagem} Use "Criar acesso" no cartão dele.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> abrirCriarAcesso(Map<String, dynamic> passageiro) async {
+    final criado = await mostrarDialogoCriarAcesso(
+      context,
+      tipo: TipoAcesso.passageiro,
+      cadastroId: passageiro['id'] as String,
+      nome: passageiro['nome']?.toString() ?? 'O passageiro',
+      emailInicial: passageiro['email']?.toString(),
+    );
+    if (criado) await vm.carregar();
   }
 
   Future<void> confirmarExclusao(Map<String, dynamic> passageiro) async {
@@ -556,15 +647,17 @@ class _PassageirosViewState extends State<PassageirosView> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              IconButton(
-                onPressed: widget.onVoltar,
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Voltar',
-              ),
-              const Text(
-                'Passageiros',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
+              if (widget.onVoltar != null) ...[
+                IconButton(
+                  onPressed: widget.onVoltar,
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Voltar',
+                ),
+                const Text(
+                  'Passageiros',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+              ],
               const Spacer(),
               FilledButton.icon(
                 onPressed: () => abrirFormulario(),
@@ -633,6 +726,7 @@ class _PassageirosViewState extends State<PassageirosView> {
           final passageiro = vm.passageiros[index];
           final ativo = passageiro['ativo'] as bool? ?? true;
           final telefone = passageiro['telefone']?.toString() ?? '';
+          final temAcesso = passageiro['perfil_id'] != null;
           final nascimento = DateTime.tryParse(
             passageiro['data_nascimento']?.toString() ?? '',
           );
@@ -683,9 +777,16 @@ class _PassageirosViewState extends State<PassageirosView> {
                         .isNotEmpty)
                       Text('Observações: ${passageiro['observacoes']}'),
                     const SizedBox(height: 6),
-                    Chip(
-                      label: Text(ativo ? 'Ativo' : 'Inativo'),
-                      visualDensity: VisualDensity.compact,
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        Chip(
+                          label: Text(ativo ? 'Ativo' : 'Inativo'),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        SeloAcesso(temAcesso: temAcesso),
+                      ],
                     ),
                   ],
                 ),
@@ -694,6 +795,12 @@ class _PassageirosViewState extends State<PassageirosView> {
               trailing: Wrap(
                 spacing: 0,
                 children: [
+                  if (!temAcesso)
+                    IconButton(
+                      tooltip: 'Criar acesso ao app',
+                      onPressed: () => abrirCriarAcesso(passageiro),
+                      icon: const Icon(Icons.person_add_alt_1_outlined),
+                    ),
                   IconButton(
                     tooltip: 'Editar passageiro',
                     onPressed: () => abrirFormulario(passageiro),

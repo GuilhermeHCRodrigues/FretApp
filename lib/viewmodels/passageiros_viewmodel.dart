@@ -24,7 +24,7 @@ class PassageirosViewModel extends ChangeNotifier {
           .select(
             'id, nome, cpf, telefone, email, data_nascimento, cep, '
             'logradouro, numero, complemento, bairro, cidade, uf, '
-            'nome_responsavel, telefone_responsavel, observacoes, ativo',
+            'nome_responsavel, telefone_responsavel, observacoes, ativo, perfil_id',
           )
           .order('nome');
 
@@ -32,10 +32,12 @@ class PassageirosViewModel extends ChangeNotifier {
     } catch (exception) {
       if (exception is PostgrestException) {
         if (exception.code == '42P01' || exception.code == '42703') {
-          erro = 'A tabela de passageiros ainda não está pronta. '
+          erro =
+              'A tabela de passageiros ainda não está pronta. '
               'Execute a migração SQL do projeto no Supabase.';
         } else if (exception.code == '42501') {
-          erro = 'Seu usuário não tem permissão para consultar os passageiros. '
+          erro =
+              'Seu usuário não tem permissão para consultar os passageiros. '
               'Entre com uma conta de administrador.';
         } else {
           erro = 'Não foi possível carregar os passageiros.';
@@ -49,7 +51,8 @@ class PassageirosViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> salvar({
+  /// Salva o cadastro e devolve o id dele (novo ou existente).
+  Future<String> salvar({
     String? id,
     required Map<String, dynamic> dados,
   }) async {
@@ -71,13 +74,24 @@ class PassageirosViewModel extends ChangeNotifier {
       }
     }
 
+    // perfil_id só é definido pela criação de acesso (Edge Function).
+    registro.remove('perfil_id');
+
+    final String salvoId;
     if (id == null) {
-      await supabase.from('passageiros').insert(registro);
+      final criado = await supabase
+          .from('passageiros')
+          .insert(registro)
+          .select('id')
+          .single();
+      salvoId = criado['id'] as String;
     } else {
       await supabase.from('passageiros').update(registro).eq('id', id);
+      salvoId = id;
     }
 
     await carregar();
+    return salvoId;
   }
 
   Future<void> excluir(String id) async {

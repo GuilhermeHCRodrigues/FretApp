@@ -93,10 +93,8 @@ class _HomeViewState extends State<HomeView> {
         }
 
         if (tipo == 'administrador') {
-          return Scaffold(
-            appBar: construirAppBar(),
-            body: const AdminDashboardView(),
-          );
+          // Mesma casca do motorista: o "Sair" fica no rodapé do menu.
+          return AdminDashboardView(onSair: sair);
         }
 
         if (tipo == 'passageiro') {

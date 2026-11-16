@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'financeiro_view.dart';
 import 'mensagens_inbox_view.dart';
 
 import '../models/passageiro_viagem.dart';
@@ -13,6 +14,13 @@ import 'widgets/ilustracao_onibus.dart';
 import 'widgets/mapa_motorista.dart';
 
 part 'passageiros_viagem_view.dart';
+
+// Índices das abas (ordem de _destinos).
+const _abaInicio = 0;
+const _abaPassageiros = 1;
+const _abaAvisos = 2;
+const _abaFinanceiro = 3;
+const _abaPerfil = 4;
 
 const _destinos = [
   DestinoCasca(
@@ -29,6 +37,11 @@ const _destinos = [
     icone: Icons.notifications_none_rounded,
     iconeSelecionado: Icons.notifications_rounded,
     rotulo: 'Avisos',
+  ),
+  DestinoCasca(
+    icone: Icons.account_balance_wallet_outlined,
+    iconeSelecionado: Icons.account_balance_wallet_rounded,
+    rotulo: 'Financeiro',
   ),
   DestinoCasca(
     icone: Icons.person_outline_rounded,
@@ -60,7 +73,7 @@ class _MotoristaViewState extends State<MotoristaView> {
         fonteViagem: servico.buscarViagemDoDia,
         atualizarStatus: servico.atualizarStatusViagem,
       ));
-  int _aba = 0;
+  int _aba = _abaInicio;
 
   @override
   void initState() {
@@ -100,28 +113,31 @@ class _MotoristaViewState extends State<MotoristaView> {
               trailing: const Icon(Icons.logout, size: 20),
               onTap: widget.onSair,
             ),
-      corpo: (context, desktop) => ListenableBuilder(
-        listenable: _motorista,
-        builder: (context, _) => ListView(
-          key: PageStorageKey(_destinos[_aba].rotulo),
-          padding: desktop
-              ? const EdgeInsets.all(24)
-              : const EdgeInsets.fromLTRB(12, 12, 12, 24),
-          children: [_conteudo(desktop)],
-        ),
-      ),
+      corpo: (context, desktop) => _aba == _abaFinanceiro
+          // Mesmo Financeiro do administrador (tem rolagem própria).
+          ? const FinanceiroView()
+          : ListenableBuilder(
+              listenable: _motorista,
+              builder: (context, _) => ListView(
+                key: PageStorageKey(_destinos[_aba].rotulo),
+                padding: desktop
+                    ? const EdgeInsets.all(24)
+                    : const EdgeInsets.fromLTRB(12, 12, 12, 24),
+                children: [_conteudo(desktop)],
+              ),
+            ),
     );
   }
 
   Widget _conteudo(bool desktop) {
-    if (_aba == 0) {
+    if (_aba == _abaInicio) {
       return _Inicio(
         modelo: _motorista,
         desktop: desktop,
-        abrirPassageiros: () => _selecionar(1),
+        abrirPassageiros: () => _selecionar(_abaPassageiros),
       );
     }
-    if (_aba == 1) {
+    if (_aba == _abaPassageiros) {
       return PassageirosViagemView(
         key: ObjectKey(_motorista),
         modelo: _motorista,
@@ -174,12 +190,11 @@ class _Inicio extends StatelessWidget {
           rastro: modelo.rastro,
           trajeto: modelo.viagem?.trajeto ?? const [],
           pontos: modelo.viagem?.pontos ?? const [],
-          aguardandoGps: modelo.localizacao == EstadoLocalizacao.permitida ||
+          aguardandoGps:
+              modelo.localizacao == EstadoLocalizacao.permitida ||
               modelo.localizacao == EstadoLocalizacao.solicitando,
           aoCompartilhar: modelo.compartilharLocalizacao,
-          altura: desktop
-              ? (limites.maxWidth * .62).clamp(320.0, teto)
-              : 360,
+          altura: desktop ? (limites.maxWidth * .62).clamp(320.0, teto) : 360,
         );
       },
     );
@@ -276,9 +291,8 @@ class _ResumoPassageiros extends StatelessWidget {
         children: [
           Text(
             'Resumo dos passageiros',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           if (modelo.carregando)
@@ -311,11 +325,13 @@ class _ControlesViagem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cores = Theme.of(context).colorScheme;
-    final solicitando =
-        modelo.localizacao == EstadoLocalizacao.solicitando;
+    final solicitando = modelo.localizacao == EstadoLocalizacao.solicitando;
 
-    final (Widget icone, String texto, VoidCallback? acao) = switch (modelo
-        .situacao) {
+    final (
+      Widget icone,
+      String texto,
+      VoidCallback? acao,
+    ) = switch (modelo.situacao) {
       SituacaoViagem.aguardando when solicitando => (
         const SizedBox.square(
           dimension: 20,
@@ -732,10 +748,10 @@ class _AbaSecundaria extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (aba == 2) return const MensagensInboxView();
+    if (aba == _abaAvisos) return const MensagensInboxView();
     final destino = _destinos[aba];
     final (titulo, texto) = switch (aba) {
-      2 => (
+      _abaAvisos => (
         modelo.ultimoAviso ?? 'Nenhum aviso',
         'Atividade da viagem de hoje',
       ),
@@ -754,7 +770,7 @@ class _AbaSecundaria extends StatelessWidget {
             subtitle: Text(texto),
           ),
         ),
-        if (aba == 3 && onSair != null) ...[
+        if (aba == _abaPerfil && onSair != null) ...[
           const SizedBox(height: 16),
           OutlinedButton.icon(
             onPressed: onSair,
