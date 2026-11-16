@@ -305,9 +305,9 @@ Projeto desenvolvido em grupo como parte de uma atividade acadêmica.
 **Integrantes:**
 
 - Guilherme Henrique Rodrigues
-- [Nome do integrante 2]
-- [Nome do integrante 3]
-- [Nome do integrante 4]
+- João Guilherme Silva Domingos
+- Luiz Eduardo Vieira Lopes
+- Hugo Pereira Malaquias
 
 ## 🎓 Contexto acadêmico
 
