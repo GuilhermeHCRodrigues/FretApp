@@ -647,11 +647,8 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
                   ),
                   actions: [
                     IconButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const MensagensInboxView(),
-                        ),
-                      ),
+                      onPressed: abrirComunicados,
+                      tooltip: 'Avisos e comunicados',
                       icon: const Icon(Icons.notifications_none),
                     ),
                     IconButton(
@@ -829,7 +826,8 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
           ),
           const Spacer(),
           IconButton(
-            onPressed: () => aviso('Notificações em breve.'),
+            onPressed: abrirComunicados,
+            tooltip: 'Avisos e comunicados',
             icon: const Icon(Icons.notifications_none, color: azulEscuro),
           ),
         ],
@@ -1216,56 +1214,15 @@ class _PassageiroHomeViewState extends State<PassageiroHomeView>
   }
 
   Widget construirComunicado() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: cartaoDecoracao(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: Color(0xFFDBEAFE),
-                child: Icon(Icons.campaign, color: azul),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Administrador',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      'Comunicado recente',
-                      style: TextStyle(color: Colors.blueGrey, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 18),
-
-          const Text(
-            'Bem-vindo ao FretApp!',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-
-          const SizedBox(height: 8),
-
-          const Text(
-            'Aqui você receberá avisos sobre horários, '
-            'alterações de rotas e informações importantes '
-            'enviadas pela administração.',
-            style: TextStyle(color: Colors.blueGrey, height: 1.5),
-          ),
-        ],
-      ),
+    return UltimosComunicados(
+      decoracao: cartaoDecoracao(),
+      aoVerTodos: abrirComunicados,
     );
   }
+
+  Future<void> abrirComunicados() => Navigator.of(context).push(
+    MaterialPageRoute<void>(builder: (_) => const MensagensInboxView()),
+  );
 
   // FINANCEIRO
 

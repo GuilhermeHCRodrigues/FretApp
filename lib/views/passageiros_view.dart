@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/acesso_servico.dart';
 import '../viewmodels/passageiros_viewmodel.dart';
 import 'widgets/acesso_app.dart';
+import 'widgets/contas_sem_cadastro.dart';
 
 class PassageirosView extends StatefulWidget {
   /// Quando nulo (painel do administrador), a tela não mostra o próprio
@@ -17,6 +18,7 @@ class PassageirosView extends StatefulWidget {
 }
 
 class _PassageirosViewState extends State<PassageirosView> {
+  final _orfas = GlobalKey<ContasSemCadastroState>();
   final vm = PassageirosViewModel();
 
   @override
@@ -92,8 +94,13 @@ class _PassageirosViewState extends State<PassageirosView> {
   }
 
   String mensagemErro(Object erro) {
+    if (erro is AcessoException) return erro.mensagem;
     if (erro is PostgrestException) {
       if (erro.code == '23505') return 'Este CPF já está cadastrado.';
+      if (erro.code == '23503') {
+        return 'Este passageiro ainda tem registros ligados a ele e não '
+            'pôde ser excluído. Você pode desativá-lo no cadastro.';
+      }
       if (erro.code == '42501') {
         return 'Você não tem permissão para realizar esta operação.';
       }
@@ -608,7 +615,9 @@ class _PassageirosViewState extends State<PassageirosView> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Excluir passageiro?'),
         content: Text(
-          'Deseja realmente excluir o cadastro de ${passageiro['nome']}?',
+          'Deseja realmente excluir o cadastro de ${passageiro['nome']}? '
+          'Ele também será retirado das viagens em que estiver'
+          '${passageiro['perfil_id'] != null ? ', e o login dele no app será apagado (o e-mail fica livre)' : ''}.',
         ),
         actions: [
           TextButton(
@@ -626,7 +635,12 @@ class _PassageirosViewState extends State<PassageirosView> {
     if (confirmar != true || !mounted) return;
 
     try {
+      // Com login: apaga a conta antes, senão o e-mail fica preso e ela
+      // continua aparecendo no Financeiro.
+      final perfilId = passageiro['perfil_id'] as String?;
+      if (perfilId != null) await removerAcesso(perfilId);
       await vm.excluir(passageiro['id'] as String);
+      _orfas.currentState?.recarregar();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Passageiro excluído com sucesso!')),
@@ -668,6 +682,7 @@ class _PassageirosViewState extends State<PassageirosView> {
           ),
         ),
         if (vm.carregando) const LinearProgressIndicator(),
+        ContasSemCadastro(key: _orfas, tipo: TipoAcesso.passageiro),
         Expanded(child: conteudo()),
       ],
     ),

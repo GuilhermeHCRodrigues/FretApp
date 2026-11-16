@@ -94,7 +94,10 @@ class PassageirosViewModel extends ChangeNotifier {
     return salvoId;
   }
 
+  /// Exclui o cadastro. Antes tira o passageiro das viagens: o vínculo em
+  /// `viagem_passageiros` é ON DELETE RESTRICT e barrava a exclusão (409).
   Future<void> excluir(String id) async {
+    await supabase.from('viagem_passageiros').delete().eq('passageiro_id', id);
     await supabase.from('passageiros').delete().eq('id', id);
     await carregar();
   }

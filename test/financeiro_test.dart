@@ -30,9 +30,10 @@ Map<String, dynamic> mensalidade(
   'pagamentos': pagamentos,
 };
 
-/// Ana pagou, Bruno atrasado (vencida), Carla a vencer, Davi sem cobrança,
-/// Eva cancelada, Fábio só tem cadastro (sem login).
+/// Ana pagou, Bruno atrasado (vencida), Carla a vencer, Davi não assinou
+/// (em aberto), Eva cancelada, Fábio só tem cadastro (sem login).
 final dadosExemplo = DadosFinanceiros(
+  valorPadraoCentavos: 20000,
   perfis: [
     perfil('ana', 'Ana Souza'),
     perfil('bruno', 'Bruno Lima'),
@@ -94,7 +95,7 @@ void main() {
       expect(de('Ana').situacao, SituacaoPagamento.pago);
       expect(de('Bruno').situacao, SituacaoPagamento.atrasado);
       expect(de('Carla').situacao, SituacaoPagamento.pendente);
-      expect(de('Davi').situacao, SituacaoPagamento.semCobranca);
+      expect(de('Davi').situacao, SituacaoPagamento.emAberto);
       expect(de('Eva').situacao, SituacaoPagamento.cancelada);
       expect(de('Fábio').situacao, SituacaoPagamento.semAcesso);
     });
@@ -133,7 +134,45 @@ void main() {
       expect(r.naoPagaram, 4); // Bruno, Carla, Davi, Fábio
       expect(r.atrasados, 1);
       expect(r.recebidoCentavos, 20000);
-      expect(r.emAbertoCentavos, 38000);
+      // Bruno 200 + Carla 180 + Davi 200 (valor vigente) + Fábio 200.
+      expect(r.emAbertoCentavos, 78000);
+    });
+
+    test('todo cadastrado deve o valor vigente, mesmo sem cobrança', () {
+      final davi = de('Davi');
+      expect(davi.valorCentavos, 20000);
+      expect(davi.vencimento, isNull);
+      expect(davi.vencimentoTexto, 'Ao assinar');
+      expect(davi.situacao.naoPagou, isTrue);
+
+      final fabio = de('Fábio');
+      expect(fabio.valorCentavos, 20000);
+      expect(fabio.situacao, SituacaoPagamento.semAcesso);
+    });
+
+    test('assinatura em vigor sem cobrança no mês vence na renovação', () {
+      final linhas = montarLinhas(
+        DadosFinanceiros(
+          perfis: [perfil('gil', 'Gil')],
+          assinaturas: [
+            {
+              'passageiro_id': 'gil',
+              'status': 'active',
+              'periodo_fim': '2026-11-25T03:00:00Z',
+            },
+          ],
+        ),
+        hoje,
+        valorPadraoCentavos: 25000,
+      );
+      final gil = linhas.single;
+      expect(gil.situacao, SituacaoPagamento.pendente);
+      expect(gil.valorCentavos, 25000);
+      expect(gil.vencimento, DateTime.utc(2026, 11, 25, 3).toLocal());
+    });
+
+    test('sem assinatura o rótulo é "Não assinou"', () {
+      expect(statusAssinatura(null).rotulo, 'Não assinou');
     });
   });
 
@@ -147,7 +186,7 @@ void main() {
         [
           SituacaoPagamento.pendente,
           SituacaoPagamento.atrasado,
-          SituacaoPagamento.semCobranca,
+          SituacaoPagamento.emAberto,
           SituacaoPagamento.semAcesso,
         ],
       );

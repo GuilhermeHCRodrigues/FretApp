@@ -5,9 +5,13 @@ enum SituacaoPagamento {
   pago('Pago', TomStatus.sucesso),
   pendente('A vencer', TomStatus.atencao),
   atrasado('Atrasado', TomStatus.erro),
-  semCobranca('Sem cobrança', TomStatus.neutro),
+  /// Ainda não assinou: deve a mensalidade, mas o Stripe não gerou cobrança.
+  emAberto('Em aberto', TomStatus.atencao),
   cancelada('Cancelada', TomStatus.neutro),
-  semAcesso('Sem acesso ao app', TomStatus.neutro);
+
+  /// Cadastro sem login: deve a mensalidade, mas precisa do acesso ao app
+  /// para assinar e pagar.
+  semAcesso('Sem acesso ao app', TomStatus.atencao);
 
   const SituacaoPagamento(this.rotulo, this.tom);
 
@@ -18,7 +22,7 @@ enum SituacaoPagamento {
 
   /// Quem conta como "não pagou" no filtro. Cancelada não é dívida.
   bool get naoPagou => switch (this) {
-    pendente || atrasado || semCobranca || semAcesso => true,
+    pendente || atrasado || emAberto || semAcesso => true,
     pago || cancelada => false,
   };
 }
@@ -52,8 +56,12 @@ InfoStatus statusAssinatura(String? status) => switch (status) {
   'incomplete_expired' => (tom: TomStatus.neutro, rotulo: 'Expirada'),
   'paused' => (tom: TomStatus.neutro, rotulo: 'Pausada'),
   'canceled' => (tom: TomStatus.neutro, rotulo: 'Cancelada'),
-  _ => (tom: TomStatus.neutro, rotulo: 'Sem assinatura'),
+  _ => (tom: TomStatus.atencao, rotulo: 'Não assinou'),
 };
+
+/// Assinatura que gera cobranças (o Stripe ainda vai cobrar).
+bool assinaturaEmVigor(String? status) =>
+    const {'active', 'trialing', 'past_due', 'unpaid'}.contains(status);
 
 /// Uma linha da tabela: um passageiro e a mensalidade dele no mês.
 class LinhaFinanceira {
@@ -66,6 +74,7 @@ class LinhaFinanceira {
     this.instituicao,
     this.valorCentavos,
     this.vencimento,
+    this.vencimentoTexto,
     this.pagoEm,
     this.statusAssinatura,
   });
@@ -77,8 +86,12 @@ class LinhaFinanceira {
   final String? telefone;
   final String? instituicao;
   final SituacaoPagamento situacao;
+  /// Valor da mensalidade do mês; sem cobrança gerada, o valor vigente.
   final int? valorCentavos;
   final DateTime? vencimento;
+
+  /// Texto da coluna Vencimento quando ainda não há data ("Ao assinar").
+  final String? vencimentoTexto;
   final DateTime? pagoEm;
   final String? statusAssinatura;
 }
@@ -90,6 +103,7 @@ class DadosFinanceiros {
     this.cadastros = const [],
     this.mensalidades = const [],
     this.assinaturas = const [],
+    this.valorPadraoCentavos,
   });
 
   /// `perfis` com tipo = passageiro (contas de login).
@@ -101,8 +115,12 @@ class DadosFinanceiros {
   /// `mensalidades` da competência, com `pagamentos(...)`.
   final List<Map<String, dynamic>> mensalidades;
 
-  /// `assinaturas_stripe`.
+  /// `assinaturas_stripe` (passageiro_id, status, periodo_fim).
   final List<Map<String, dynamic>> assinaturas;
+
+  /// Valor vigente (`configuracao_mensalidade`): o que todo cadastrado deve
+  /// enquanto o Stripe não gerou a cobrança do mês.
+  final int? valorPadraoCentavos;
 }
 
 String? _texto(Object? valor) {
@@ -118,7 +136,7 @@ SituacaoPagamento situacaoDaMensalidade(
   Map<String, dynamic>? mensalidade,
   DateTime hoje,
 ) {
-  if (mensalidade == null) return SituacaoPagamento.semCobranca;
+  if (mensalidade == null) return SituacaoPagamento.emAberto;
   final dia = DateTime(hoje.year, hoje.month, hoje.day);
   final vencimento = _data(mensalidade['vencimento']);
   return switch (mensalidade['status']) {
@@ -145,16 +163,23 @@ DateTime? _ultimoPagamento(Map<String, dynamic>? mensalidade) {
 
 /// Junta contas, cadastros, mensalidades e assinaturas: uma linha por pessoa.
 ///
+/// - Todo passageiro cadastrado deve a mensalidade: sem cobrança no mês, a
+///   linha mostra o valor vigente ([valorPadraoCentavos]) como em aberto.
 /// - Toda conta de passageiro (`perfis`) aparece, com ou sem cadastro.
-/// - Cadastro sem login aparece como "Sem acesso ao app" (não tem como pagar).
+/// - Cadastro sem login aparece como "Sem acesso ao app" (precisa do login
+///   para assinar).
 /// - Nome/telefone do cadastro têm prioridade (são os do administrador).
-List<LinhaFinanceira> montarLinhas(DadosFinanceiros dados, DateTime hoje) {
+List<LinhaFinanceira> montarLinhas(
+  DadosFinanceiros dados,
+  DateTime hoje, {
+  int? valorPadraoCentavos,
+}) {
+  final valorPadrao = dados.valorPadraoCentavos ?? valorPadraoCentavos;
   final mensalidadePorPerfil = {
     for (final m in dados.mensalidades) m['passageiro_id'] as String: m,
   };
   final assinaturaPorPerfil = {
-    for (final a in dados.assinaturas)
-      a['passageiro_id'] as String: a['status'] as String?,
+    for (final a in dados.assinaturas) a['passageiro_id'] as String: a,
   };
   final cadastroPorPerfil = <String, Map<String, dynamic>>{};
   final cadastrosSemLogin = <Map<String, dynamic>>[];
@@ -167,34 +192,67 @@ List<LinhaFinanceira> montarLinhas(DadosFinanceiros dados, DateTime hoje) {
     }
   }
 
+  LinhaFinanceira daConta(Map<String, dynamic> p) {
+    final id = p['id'] as String;
+    final cadastro = cadastroPorPerfil[id];
+    final mensalidade = mensalidadePorPerfil[id];
+    final assinatura = assinaturaPorPerfil[id];
+    final status = assinatura?['status'] as String?;
+    final nome =
+        _texto(cadastro?['nome']) ??
+        _texto(p['nome_completo']) ??
+        'Passageiro sem nome';
+    final telefone = _texto(cadastro?['telefone']) ?? _texto(p['telefone']);
+
+    if (mensalidade != null) {
+      return LinhaFinanceira(
+        chave: id,
+        perfilId: id,
+        nome: nome,
+        telefone: telefone,
+        instituicao: _texto(p['instituicao']),
+        situacao: situacaoDaMensalidade(mensalidade, hoje),
+        valorCentavos:
+            (mensalidade['valor_centavos'] as num?)?.toInt() ?? valorPadrao,
+        vencimento: _data(mensalidade['vencimento']),
+        pagoEm: _ultimoPagamento(mensalidade),
+        statusAssinatura: status,
+      );
+    }
+
+    // Sem cobrança no mês. Assinatura em vigor: o Stripe vai cobrar na
+    // renovação (periodo_fim). Sem assinatura: deve, e paga ao assinar.
+    final emVigor = assinaturaEmVigor(status);
+    final renovacao = emVigor ? _data(assinatura?['periodo_fim']) : null;
+    final dia = DateTime(hoje.year, hoje.month, hoje.day);
+    return LinhaFinanceira(
+      chave: id,
+      perfilId: id,
+      nome: nome,
+      telefone: telefone,
+      instituicao: _texto(p['instituicao']),
+      situacao: !emVigor
+          ? SituacaoPagamento.emAberto
+          : renovacao != null && renovacao.isBefore(dia)
+          ? SituacaoPagamento.atrasado
+          : SituacaoPagamento.pendente,
+      valorCentavos: valorPadrao,
+      vencimento: renovacao,
+      vencimentoTexto: emVigor ? 'Na renovação' : 'Ao assinar',
+      statusAssinatura: status,
+    );
+  }
+
   final linhas = <LinhaFinanceira>[
-    for (final p in dados.perfis)
-      () {
-        final id = p['id'] as String;
-        final cadastro = cadastroPorPerfil[id];
-        final mensalidade = mensalidadePorPerfil[id];
-        return LinhaFinanceira(
-          chave: id,
-          perfilId: id,
-          nome:
-              _texto(cadastro?['nome']) ??
-              _texto(p['nome_completo']) ??
-              'Passageiro sem nome',
-          telefone: _texto(cadastro?['telefone']) ?? _texto(p['telefone']),
-          instituicao: _texto(p['instituicao']),
-          situacao: situacaoDaMensalidade(mensalidade, hoje),
-          valorCentavos: (mensalidade?['valor_centavos'] as num?)?.toInt(),
-          vencimento: _data(mensalidade?['vencimento']),
-          pagoEm: _ultimoPagamento(mensalidade),
-          statusAssinatura: assinaturaPorPerfil[id],
-        );
-      }(),
+    for (final p in dados.perfis) daConta(p),
     for (final c in cadastrosSemLogin)
       LinhaFinanceira(
         chave: 'cadastro:${c['id']}',
         nome: _texto(c['nome']) ?? 'Passageiro sem nome',
         telefone: _texto(c['telefone']),
         situacao: SituacaoPagamento.semAcesso,
+        valorCentavos: valorPadrao,
+        vencimentoTexto: 'Ao assinar',
       ),
   ];
 
@@ -202,7 +260,7 @@ List<LinhaFinanceira> montarLinhas(DadosFinanceiros dados, DateTime hoje) {
   return linhas;
 }
 
-/// Totais da competência (só de quem tem conta; cadastro sem login não conta).
+/// Totais da competência (todo cadastrado deve a mensalidade).
 class ResumoFinanceiro {
   const ResumoFinanceiro({
     required this.total,

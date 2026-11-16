@@ -652,6 +652,15 @@ String _valor(LinhaFinanceira l) =>
 
 String _dataOuTraco(DateTime? d) => d == null ? '—' : formatarData(d);
 
+String _vencimento(LinhaFinanceira l) => l.vencimento != null
+    ? formatarData(l.vencimento!)
+    : l.vencimentoTexto ?? '—';
+
+/// Chip da coluna Assinatura (cadastro sem login ainda não pode assinar).
+InfoStatus _assinatura(LinhaFinanceira l) => l.perfilId == null
+    ? (tom: TomStatus.atencao, rotulo: 'Sem login')
+    : statusAssinatura(l.statusAssinatura);
+
 /// Tabela (tablet/desktop).
 class _TabelaPassageiros extends StatelessWidget {
   const _TabelaPassageiros({required this.linhas});
@@ -708,15 +717,9 @@ class _TabelaPassageiros extends StatelessWidget {
                         ),
                       ),
                       DataCell(Text(_formatarTelefone(l.telefone))),
-                      DataCell(
-                        l.perfilId == null
-                            ? Text('—', style: secundario)
-                            : ChipStatus.de(
-                                statusAssinatura(l.statusAssinatura),
-                              ),
-                      ),
+                      DataCell(ChipStatus.de(_assinatura(l))),
                       DataCell(Text(_valor(l))),
-                      DataCell(Text(_dataOuTraco(l.vencimento))),
+                      DataCell(Text(_vencimento(l))),
                       DataCell(Text(_dataOuTraco(l.pagoEm))),
                       DataCell(ChipStatus.de(l.situacao.info)),
                     ],
@@ -781,7 +784,7 @@ class _ListaPassageiros extends StatelessWidget {
                     children: [
                       Text('Valor: ${_valor(l)}', style: secundario),
                       Text(
-                        'Vencimento: ${_dataOuTraco(l.vencimento)}',
+                        'Vencimento: ${_vencimento(l)}',
                         style: secundario,
                       ),
                       if (l.pagoEm != null)
@@ -791,12 +794,10 @@ class _ListaPassageiros extends StatelessWidget {
                         ),
                       if (l.telefone != null)
                         Text(_formatarTelefone(l.telefone), style: secundario),
-                      if (l.perfilId != null)
-                        Text(
-                          'Assinatura: '
-                          '${statusAssinatura(l.statusAssinatura).rotulo}',
-                          style: secundario,
-                        ),
+                      Text(
+                        'Assinatura: ${_assinatura(l).rotulo}',
+                        style: secundario,
+                      ),
                     ],
                   ),
                 ],

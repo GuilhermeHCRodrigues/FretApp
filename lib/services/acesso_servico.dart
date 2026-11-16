@@ -82,3 +82,72 @@ Future<void> criarAcesso({
     );
   }
 }
+
+/// Conta de login sem cadastro ligado (sobrou de um cadastro excluído).
+class ContaOrfa {
+  const ContaOrfa({
+    required this.perfilId,
+    this.email,
+    this.tipo,
+    this.nome,
+    this.telefone,
+  });
+
+  factory ContaOrfa.deJson(Map<String, dynamic> j) => ContaOrfa(
+    perfilId: j['perfil_id'] as String,
+    email: j['email'] as String?,
+    tipo: j['tipo'] as String?,
+    nome: j['nome'] as String?,
+    telefone: j['telefone'] as String?,
+  );
+
+  final String perfilId;
+  final String? email;
+
+  /// `perfis.tipo`; null quando o login nem tem perfil.
+  final String? tipo;
+  final String? nome;
+  final String? telefone;
+}
+
+Future<Map<String, dynamic>> _invocarRemover(Map<String, dynamic> corpo) async {
+  try {
+    final resposta = await Supabase.instance.client.functions.invoke(
+      'remover-acesso',
+      body: corpo,
+    );
+    return Map<String, dynamic>.from(resposta.data as Map);
+  } on FunctionException catch (erro) {
+    final detalhes = erro.details;
+    if (detalhes is Map && detalhes['erro'] is String) {
+      throw AcessoException(detalhes['erro'] as String);
+    }
+    throw AcessoException(
+      'Não foi possível remover o acesso (erro ${erro.status}). '
+      'Confira se a função "remover-acesso" está publicada no Supabase.',
+    );
+  } catch (erro) {
+    if (erro is AcessoException) rethrow;
+    throw const AcessoException(
+      'Não foi possível falar com o servidor. Confira a internet e se a '
+      'função "remover-acesso" está publicada no Supabase.',
+    );
+  }
+}
+
+/// Apaga o login (Auth + perfis) para liberar o e-mail. Cancela a assinatura
+/// no Stripe e apaga o histórico financeiro dessa conta.
+Future<void> removerAcesso(String perfilId) =>
+    _invocarRemover({'perfil_id': perfilId});
+
+/// Logins de [tipo] (ou de qualquer tipo, com null) sem cadastro ligado.
+Future<List<ContaOrfa>> listarContasSemCadastro(TipoAcesso? tipo) async {
+  final dados = await _invocarRemover({
+    'acao': 'listar',
+    if (tipo != null) 'tipo': tipo.valor,
+  });
+  return [
+    for (final c in (dados['contas'] as List? ?? const []))
+      ContaOrfa.deJson(Map<String, dynamic>.from(c as Map)),
+  ];
+}
