@@ -304,7 +304,7 @@ Projeto desenvolvido em grupo como parte de uma atividade acadêmica.
 
 **Integrantes:**
 
-- Guilherme Henrique Rodrigues
+- Guilherme Henrique Costa Rodrigues
 - João Guilherme Silva Domingos
 - Luiz Eduardo Vieira Lopes
 - Hugo Pereira Malaquias
