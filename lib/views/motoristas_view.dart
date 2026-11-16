@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/acesso_servico.dart';
 import '../viewmodels/motoristas_viewmodel.dart';
 import 'widgets/acesso_app.dart';
+import 'widgets/contas_sem_cadastro.dart';
 
 class MotoristasView extends StatefulWidget {
   /// Quando nulo (painel do administrador), a tela não mostra o próprio
@@ -17,6 +18,7 @@ class MotoristasView extends StatefulWidget {
 }
 
 class _MotoristasViewState extends State<MotoristasView> {
+  final _orfas = GlobalKey<ContasSemCadastroState>();
   final vm = MotoristasViewModel();
 
   static const categoriasCnh = [
@@ -115,6 +117,7 @@ class _MotoristasViewState extends State<MotoristasView> {
   }
 
   String mensagemErro(Object erro) {
+    if (erro is AcessoException) return erro.mensagem;
     if (erro is PostgrestException) {
       if (erro.code == '23505') {
         return 'Este CPF ou número de CNH já está cadastrado.';
@@ -508,7 +511,8 @@ class _MotoristasViewState extends State<MotoristasView> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Excluir motorista?'),
         content: Text(
-          'Deseja realmente excluir o cadastro de ${motorista['nome']}?',
+          'Deseja realmente excluir o cadastro de ${motorista['nome']}?'
+          '${motorista['perfil_id'] != null ? ' O login dele no app também será apagado (o e-mail fica livre).' : ''}',
         ),
         actions: [
           TextButton(
@@ -528,7 +532,12 @@ class _MotoristasViewState extends State<MotoristasView> {
     }
 
     try {
+      // Com login: apaga a conta antes, senão o e-mail fica preso e ela
+      // continua aparecendo no Financeiro.
+      final perfilId = motorista['perfil_id'] as String?;
+      if (perfilId != null) await removerAcesso(perfilId);
       await vm.excluir(motorista['id'] as String);
+      _orfas.currentState?.recarregar();
       if (!mounted) {
         return;
       }
@@ -574,6 +583,7 @@ class _MotoristasViewState extends State<MotoristasView> {
           ),
         ),
         if (vm.carregando) const LinearProgressIndicator(),
+        ContasSemCadastro(key: _orfas, tipo: TipoAcesso.motorista),
         Expanded(child: conteudo()),
       ],
     ),

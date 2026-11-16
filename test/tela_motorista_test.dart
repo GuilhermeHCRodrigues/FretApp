@@ -169,7 +169,8 @@ void main() {
         expect(find.text('Ana Exemplo'), findsOneWidget);
         expect(find.text('Ida e volta'), findsOneWidget);
         await tocar(tester, destino('Avisos'));
-        expect(find.text('Nenhum aviso'), findsOneWidget);
+        // A aba mostra a caixa de comunicados do administrador.
+        expect(find.text('Avisos e comunicados'), findsOneWidget);
         await tocar(tester, destino('Perfil'));
         expect(find.text('Sair'), findsOneWidget);
         await tocar(tester, destino('Início'));

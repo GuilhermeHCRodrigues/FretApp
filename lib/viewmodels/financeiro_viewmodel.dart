@@ -43,6 +43,7 @@ class FinanceiroViewModel extends ChangeNotifier {
   String busca = '';
 
   List<LinhaFinanceira> linhas = const [];
+  DadosFinanceiros? _dados;
   bool carregando = false;
   String? erro;
 
@@ -86,7 +87,8 @@ class FinanceiroViewModel extends ChangeNotifier {
     try {
       final dados = await _fonte(competencia);
       if (requisicao != _requisicao) return;
-      linhas = montarLinhas(dados, _agora());
+      _dados = dados;
+      _montar();
     } on PostgrestException catch (e) {
       if (requisicao != _requisicao) return;
       erro = switch (e.code) {
@@ -106,12 +108,24 @@ class FinanceiroViewModel extends ChangeNotifier {
     }
   }
 
+  /// Sem valor no banco, usa o consultado no Stripe.
+  void _montar() {
+    final dados = _dados;
+    if (dados == null) return;
+    linhas = montarLinhas(
+      dados,
+      _agora(),
+      valorPadraoCentavos: valorMensalidade?.valorCentavos,
+    );
+  }
+
   Future<void> carregarValor() async {
     carregandoValor = true;
     erroValor = null;
     _notificar();
     try {
       valorMensalidade = await _consultarValor();
+      _montar();
     } on MensalidadeException catch (e) {
       erroValor = e.mensagem;
     } catch (_) {
@@ -132,6 +146,17 @@ class FinanceiroViewModel extends ChangeNotifier {
       valorCentavos: resultado.valorCentavos,
       assinaturas: valorMensalidade?.assinaturas ?? 0,
     );
+    // Quem ainda não tem cobrança no mês passa a dever o valor novo.
+    if (_dados != null) {
+      _dados = DadosFinanceiros(
+        perfis: _dados!.perfis,
+        cadastros: _dados!.cadastros,
+        mensalidades: _dados!.mensalidades,
+        assinaturas: _dados!.assinaturas,
+        valorPadraoCentavos: resultado.valorCentavos,
+      );
+    }
+    _montar();
     erroValor = null;
     _notificar();
     return resultado;
@@ -174,12 +199,12 @@ String _dataIso(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-'
     '${d.day.toString().padLeft(2, '0')}';
 
-/// Implementação real: quatro consultas em paralelo no Supabase.
+/// Implementação real: cinco consultas em paralelo no Supabase.
 Future<DadosFinanceiros> buscarDadosFinanceiros(DateTime competencia) async {
   final supabase = Supabase.instance.client;
   final mes = _dataIso(DateTime(competencia.year, competencia.month));
 
-  final resultados = await Future.wait([
+  final resultados = await Future.wait<dynamic>([
     supabase
         .from('perfis')
         .select('id, nome_completo, telefone, instituicao')
@@ -191,15 +216,23 @@ Future<DadosFinanceiros> buscarDadosFinanceiros(DateTime competencia) async {
           'pagamentos(status, pago_em, valor_centavos)',
         )
         .eq('competencia', mes),
-    supabase.from('assinaturas_stripe').select('passageiro_id, status'),
+    supabase
+        .from('assinaturas_stripe')
+        .select('passageiro_id, status, periodo_fim'),
     _buscarCadastros(supabase),
+    supabase
+        .from('configuracao_mensalidade')
+        .select('valor_centavos')
+        .maybeSingle(),
   ]);
+  final config = resultados[4] as Map<String, dynamic>?;
 
   return DadosFinanceiros(
     perfis: List<Map<String, dynamic>>.from(resultados[0]),
     mensalidades: List<Map<String, dynamic>>.from(resultados[1]),
     assinaturas: List<Map<String, dynamic>>.from(resultados[2]),
     cadastros: List<Map<String, dynamic>>.from(resultados[3]),
+    valorPadraoCentavos: (config?['valor_centavos'] as num?)?.toInt(),
   );
 }
 

@@ -116,6 +116,10 @@ class _MotoristaViewState extends State<MotoristaView> {
       corpo: (context, desktop) => _aba == _abaFinanceiro
           // Mesmo Financeiro do administrador (tem rolagem própria).
           ? const FinanceiroView()
+          : _aba == _abaAvisos
+          // Lista com rolagem própria: dentro do ListView ficaria sem
+          // altura e não aparecia nada.
+          ? const MensagensInboxView(embutida: true)
           : ListenableBuilder(
               listenable: _motorista,
               builder: (context, _) => ListView(
@@ -748,7 +752,6 @@ class _AbaSecundaria extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (aba == _abaAvisos) return const MensagensInboxView();
     final destino = _destinos[aba];
     final (titulo, texto) = switch (aba) {
       _abaAvisos => (
